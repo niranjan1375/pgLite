@@ -1,44 +1,44 @@
 import { Pool } from "pg";
-import { environments, Environment } from "./environments";
+import { environments } from "./environments";
 
-// Global pool cache to reuse connections
-const poolCache = new Map<string, Pool>();
-
-export function getPool(environment: string = "loadtest"): Pool {
-    // Check if pool already exists in cache
-    if (poolCache.has(environment)) {
-        return poolCache.get(environment)!;
-    }
-
-    // Get environment configuration
+/**
+ * Creates a new PostgreSQL connection pool for the specified environment and database.
+ * No caching - each call creates a fresh pool. The Pool itself manages connection pooling internally.
+ *
+ * @param environment - Environment ID (loadtest, sandbox, staging, etc.)
+ * @param database - Optional database name (overrides environment default)
+ * @returns A new Pool instance
+ */
+export function createPool(
+    environment: string = "loadtest",
+    database?: string,
+): Pool {
     const envConfig = environments[environment];
 
     if (!envConfig) {
         console.warn(
             `Environment "${environment}" not found, using loadtest as fallback`,
         );
-        return getPool("loadtest");
+        return createPool("loadtest", database);
     }
 
-    // Create new pool
-    const pool = new Pool({
+    return new Pool({
         host: envConfig.host,
         port: envConfig.port,
         user: envConfig.user,
         password: envConfig.password,
-        database: envConfig.database,
+        database: database || envConfig.database,
         ssl: {
             rejectUnauthorized: false,
         },
+        // Connection pool settings
+        max: 10, // Maximum 10 connections per pool
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000,
     });
-
-    // Cache the pool
-    poolCache.set(environment, pool);
-
-    return pool;
 }
 
-// Default pool for backward compatibility
-const pool = getPool("loadtest");
+// Default pool for backward compatibility (not recommended for new code)
+const pool = createPool("loadtest");
 
 export default pool;

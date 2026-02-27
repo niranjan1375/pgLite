@@ -1,14 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Pool } from "pg";
-import { getPool } from "@/lib/db";
-import { environments } from "@/lib/environments";
+import { createPool } from "@/lib/db";
+
+/**
+ * Helper to detect if a query is write operation
+ */
+function isWriteQuery(query: string): boolean {
+    const upperQuery = query.trim().toUpperCase();
+    const writeKeywords = [
+        "INSERT",
+        "UPDATE",
+        "DELETE",
+        "DROP",
+        "CREATE",
+        "ALTER",
+        "TRUNCATE",
+        "REPLACE",
+        "MERGE",
+        "GRANT",
+        "REVOKE",
+    ];
+    return writeKeywords.some((keyword) => upperQuery.startsWith(keyword));
+}
 
 export async function POST(req: NextRequest) {
+    let pool = null;
+
     try {
         const body = await req.json();
         const query: string = body?.query?.trim();
         const database: string = body?.database;
         const environment: string = body?.environment || "loadtest";
+        const readOnly: boolean = body?.readOnly || false;
 
         if (!query) {
             return NextResponse.json(
@@ -17,31 +39,20 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // Use a specific database if provided, otherwise use default pool
-        let client = getPool(environment);
-        let tempPool: Pool | null = null;
-
-        const envConfig = environments[environment] || environments.loadtest;
-
-        if (database && database !== envConfig.database) {
-            tempPool = new Pool({
-                host: envConfig.host,
-                port: envConfig.port,
-                user: envConfig.user,
-                password: envConfig.password,
-                database: database,
-                ssl: {
-                    rejectUnauthorized: false,
+        // Check if read-only mode is enabled and query is a write operation
+        if (readOnly && isWriteQuery(query)) {
+            return NextResponse.json(
+                {
+                    error: "Write operations are disabled in read-only mode. Disable read-only protection to execute this query.",
                 },
-            });
-            client = tempPool;
+                { status: 403 },
+            );
         }
 
-        const result = await client.query(query);
+        // Create pool for this specific request
+        pool = createPool(environment, database);
 
-        if (tempPool) {
-            await tempPool.end();
-        }
+        const result = await pool.query(query);
 
         return NextResponse.json({
             rows: result.rows,
@@ -52,5 +63,10 @@ export async function POST(req: NextRequest) {
         const message =
             err instanceof Error ? err.message : "An unknown error occurred.";
         return NextResponse.json({ error: message }, { status: 500 });
+    } finally {
+        // Always clean up pool after query
+        if (pool) {
+            await pool.end();
+        }
     }
 }

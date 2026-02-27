@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Pool } from "pg";
-import { environments } from "@/lib/environments";
+import { createPool } from "@/lib/db";
 
 export async function POST(req: NextRequest) {
+    let pool = null;
+
     try {
         const body = await req.json();
         const database: string = body?.database;
@@ -15,21 +16,10 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        const envConfig = environments[environment] || environments.loadtest;
+        // Create pool for the specific database
+        pool = createPool(environment, database);
 
-        // Create a temporary pool for the specific database
-        const tempPool = new Pool({
-            host: envConfig.host,
-            port: envConfig.port,
-            user: envConfig.user,
-            password: envConfig.password,
-            database: database,
-            ssl: {
-                rejectUnauthorized: false,
-            },
-        });
-
-        const result = await tempPool.query(`
+        const result = await pool.query(`
       SELECT 
         t.table_schema,
         t.table_name,
@@ -43,8 +33,6 @@ export async function POST(req: NextRequest) {
       WHERE t.table_schema NOT IN ('pg_catalog', 'information_schema')
       ORDER BY t.table_schema, t.table_name, c.ordinal_position;
     `);
-
-        await tempPool.end();
 
         // Group columns by table
         const tableColumns: Record<
@@ -73,5 +61,9 @@ export async function POST(req: NextRequest) {
         const message =
             err instanceof Error ? err.message : "An unknown error occurred.";
         return NextResponse.json({ error: message }, { status: 500 });
+    } finally {
+        if (pool) {
+            await pool.end();
+        }
     }
 }

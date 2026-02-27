@@ -1,119 +1,260 @@
 "use client";
 
-import { useState } from "react";
-import dynamic from "next/dynamic";
-
-const SQLEditor = dynamic(() => import("@/components/SQLEditor"), {
-    ssr: false,
-});
-
-interface Column {
-    name: string;
-    type: string;
-    nullable: string;
-}
+import {
+    useState,
+    useEffect,
+    forwardRef,
+    useImperativeHandle,
+    useRef,
+} from "react";
+import { environments, getAllEnvironments } from "@/lib/environments";
 
 interface QueryTab {
     id: string;
     name: string;
     query: string;
+    environment: string;
+    database: string;
+    readOnly: boolean;
+}
+
+export type { QueryTab };
+
+export interface QueryTabsRef {
+    updateQuery: (query: string) => void;
+    getActiveTab: () => QueryTab | undefined;
 }
 
 interface QueryTabsProps {
-    tableColumns: Record<string, Column[]>;
-    onRunQuery: (query: string) => void;
-    loading: boolean;
-    selectedDatabase: string;
-    selectedEnvironment: string;
+    globalDatabase: string;
+    globalEnvironment: string;
+    databases: string[];
+    onTabChange?: (tab: QueryTab) => void;
 }
 
-export default function QueryTabs({
-    tableColumns,
-    onRunQuery,
-    loading,
-    selectedDatabase,
-    selectedEnvironment,
-}: QueryTabsProps) {
+// Helper to generate dynamic tab name
+function generateTabName(environment: string, database: string): string {
+    const envName = environments[environment]?.name || environment;
+    const shortEnv = envName.split(" ")[0]; // Take first word (Loadtest, Sandbox, etc.)
+    const shortDb = database.split("_")[0]; // Take first part before underscore
+    return `${shortEnv} • ${shortDb}`;
+}
+
+const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
+    { globalDatabase, globalEnvironment, databases, onTabChange },
+    ref,
+) {
     const [tabs, setTabs] = useState<QueryTab[]>([
-        { id: "1", name: "Query 1", query: "SELECT version();" },
+        {
+            id: "1",
+            name: "Playground 1",
+            query: "SELECT version();",
+            environment: globalEnvironment,
+            database: globalDatabase,
+            readOnly: false,
+        },
     ]);
     const [activeTabId, setActiveTabId] = useState("1");
     const [nextTabId, setNextTabId] = useState(2);
+    const lastNotifiedTabRef = useRef<{
+        id: string;
+        environment: string;
+        database: string;
+        readOnly: boolean;
+    } | null>(null);
 
     const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0];
+    const availableEnvironments = getAllEnvironments();
+
+    // Notify parent when active tab changes (but not when query changes)
+    useEffect(() => {
+        if (activeTab && onTabChange) {
+            const currentState = {
+                id: activeTab.id,
+                environment: activeTab.environment,
+                database: activeTab.database,
+                readOnly: activeTab.readOnly,
+            };
+
+            // Only notify if something actually changed
+            const lastNotified = lastNotifiedTabRef.current;
+            if (
+                !lastNotified ||
+                lastNotified.id !== currentState.id ||
+                lastNotified.environment !== currentState.environment ||
+                lastNotified.database !== currentState.database ||
+                lastNotified.readOnly !== currentState.readOnly
+            ) {
+                lastNotifiedTabRef.current = currentState;
+                onTabChange(activeTab);
+            }
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [
+        activeTab?.id,
+        activeTab?.environment,
+        activeTab?.database,
+        activeTab?.readOnly,
+    ]);
+
+    // Expose methods to parent via ref
+    useImperativeHandle(
+        ref,
+        () => ({
+            updateQuery: (query: string) => {
+                setTabs((prevTabs) =>
+                    prevTabs.map((t) =>
+                        t.id === activeTabId ? { ...t, query } : t,
+                    ),
+                );
+            },
+            getActiveTab: () => activeTab,
+        }),
+        [activeTabId, activeTab],
+    );
+
+    // Update tab name when environment or database changes
+    const updateTabName = (tab: QueryTab) => {
+        // If tab has default name (Playground X), update it dynamically
+        if (tab.name.startsWith("Playground")) {
+            return generateTabName(tab.environment, tab.database);
+        }
+        // Otherwise keep custom name
+        return tab.name;
+    };
+
+    const updateTabEnvironment = (tabId: string, environment: string) => {
+        setTabs(
+            tabs.map((t) => {
+                if (t.id === tabId) {
+                    const updatedTab = { ...t, environment };
+                    // Update name if it's a default Playground name
+                    if (t.name.startsWith("Playground ")) {
+                        updatedTab.name = generateTabName(
+                            environment,
+                            t.database,
+                        );
+                    }
+                    return updatedTab;
+                }
+                return t;
+            }),
+        );
+    };
+
+    const updateTabDatabase = (tabId: string, database: string) => {
+        setTabs(
+            tabs.map((t) => {
+                if (t.id === tabId) {
+                    const updatedTab = { ...t, database };
+                    // Update name if it's a default Playground name
+                    if (t.name.startsWith("Playground ")) {
+                        updatedTab.name = generateTabName(
+                            t.environment,
+                            database,
+                        );
+                    }
+                    return updatedTab;
+                }
+                return t;
+            }),
+        );
+    };
+
+    const toggleReadOnly = (tabId: string) => {
+        setTabs(
+            tabs.map((t) =>
+                t.id === tabId ? { ...t, readOnly: !t.readOnly } : t,
+            ),
+        );
+    };
 
     const addTab = () => {
         const newTab: QueryTab = {
             id: String(nextTabId),
             name: `Playground ${nextTabId}`,
             query: "",
+            environment: globalEnvironment,
+            database: globalDatabase,
+            readOnly: false,
         };
         setTabs([...tabs, newTab]);
-        setActiveTabId(newTab.id);
+        setActiveTabId(String(nextTabId));
         setNextTabId(nextTabId + 1);
     };
 
     const closeTab = (tabId: string) => {
-        if (tabs.length === 1) return; // Keep at least one tab
-
-        const tabIndex = tabs.findIndex((t) => t.id === tabId);
         const newTabs = tabs.filter((t) => t.id !== tabId);
         setTabs(newTabs);
-
-        if (activeTabId === tabId) {
-            const newActiveTab =
-                newTabs[Math.max(0, tabIndex - 1)] || newTabs[0];
-            setActiveTabId(newActiveTab.id);
+        if (activeTabId === tabId && newTabs.length > 0) {
+            setActiveTabId(newTabs[0].id);
         }
-    };
-
-    const updateTabQuery = (tabId: string, query: string) => {
-        setTabs(tabs.map((t) => (t.id === tabId ? { ...t, query } : t)));
     };
 
     const renameTab = (tabId: string) => {
-        const newName = prompt("Enter tab name:");
-        if (newName && newName.trim()) {
-            setTabs(
-                tabs.map((t) =>
-                    t.id === tabId ? { ...t, name: newName.trim() } : t,
-                ),
-            );
+        const name = window.prompt("Rename tab:");
+        if (name) {
+            setTabs(tabs.map((t) => (t.id === tabId ? { ...t, name } : t)));
         }
     };
 
+    // Auto-select first database when databases list becomes available
+    useEffect(() => {
+        if (
+            databases.length > 0 &&
+            activeTab &&
+            !activeTab.database &&
+            activeTab.id === activeTabId
+        ) {
+            updateTabDatabase(activeTab.id, databases[0]);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [databases.length, activeTab?.database, activeTabId]);
+
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col bg-gray-900">
             {/* Tab Bar */}
             <div className="flex items-center gap-0.5 px-3 pt-3 border-b border-gray-800 overflow-x-auto bg-gray-950">
-                {tabs.map((tab) => (
-                    <div
-                        key={tab.id}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-t text-sm
-                                   transition-colors group relative min-w-[120px]
-                                   ${
-                                       activeTabId === tab.id
-                                           ? "bg-gray-900 text-gray-100 border-t border-l border-r border-gray-800 -mb-px"
-                                           : "bg-gray-800/30 text-gray-400 hover:bg-gray-800/50 hover:text-gray-300 border-t border-l border-r border-transparent"
-                                   }`}
+                {/* Compact Branding */}
+                <div className="flex items-center gap-2 mr-4 px-2 py-1 text-blue-400">
+                    <svg
+                        className="w-5 h-5"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
                     >
-                        <button
-                            onClick={() => setActiveTabId(tab.id)}
-                            onDoubleClick={() => renameTab(tab.id)}
-                            className="flex-1 whitespace-nowrap"
-                            title="Double-click to rename"
+                        <path d="M20 14.66V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5.34l2 2H4v12h12v-5.34l2-2z" />
+                        <path d="M18.71 8.21c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.47-.47-1.12-.29-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
+                        <path d="M8 13.41V15h1.59l4.83-4.83-1.59-1.59L8 13.41z" />
+                    </svg>
+                    <span className="text-sm font-semibold tracking-tight">
+                        pgLite
+                    </span>
+                </div>
+                {tabs.map((tab) => {
+                    const displayName = updateTabName(tab);
+                    const envColor =
+                        tab.environment === "vegapay-uat" ||
+                        tab.environment === "vegapay-uat-snapshot" ||
+                        tab.environment === "unity-uat"
+                            ? "text-amber-400"
+                            : tab.environment === "staging"
+                              ? "text-orange-400"
+                              : "text-cyan-400";
+
+                    return (
+                        <div
+                            key={tab.id}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-t text-sm
+                                       transition-colors group relative min-w-[120px]
+                                       ${
+                                           activeTabId === tab.id
+                                               ? "bg-gray-900 text-gray-100 border-t border-l border-r border-gray-800 -mb-px"
+                                               : "bg-gray-800/30 text-gray-400 hover:bg-gray-800/50 hover:text-gray-300 border-t border-l border-r border-transparent"
+                                       }`}
                         >
-                            {tab.name}
-                        </button>
-                        {tabs.length > 1 && (
-                            <button
-                                onClick={() => closeTab(tab.id)}
-                                className="p-0.5 rounded hover:bg-gray-700 text-gray-500
-                                           hover:text-gray-300 transition-colors"
-                                title="Close tab"
-                            >
+                            {tab.readOnly && (
                                 <svg
-                                    className="w-3.5 h-3.5"
+                                    className="w-3 h-3 text-amber-400"
                                     fill="none"
                                     stroke="currentColor"
                                     viewBox="0 0 24 24"
@@ -122,18 +263,48 @@ export default function QueryTabs({
                                         strokeLinecap="round"
                                         strokeLinejoin="round"
                                         strokeWidth={2}
-                                        d="M6 18L18 6M6 6l12 12"
+                                        d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
                                     />
                                 </svg>
+                            )}
+                            <button
+                                onClick={() => setActiveTabId(tab.id)}
+                                onDoubleClick={() => renameTab(tab.id)}
+                                className={`flex-1 whitespace-nowrap ${activeTabId === tab.id ? envColor : ""}`}
+                                title="Double-click to rename"
+                            >
+                                {displayName}
                             </button>
-                        )}
-                    </div>
-                ))}
+                            {tabs.length > 1 && (
+                                <button
+                                    onClick={() => closeTab(tab.id)}
+                                    className="p-0.5 rounded hover:bg-gray-700 text-gray-500
+                                               hover:text-gray-300 transition-colors"
+                                    title="Close tab"
+                                >
+                                    <svg
+                                        className="w-3.5 h-3.5"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M6 18L18 6M6 6l12 12"
+                                        />
+                                    </svg>
+                                </button>
+                            )}
+                        </div>
+                    );
+                })}
                 <button
                     onClick={addTab}
-                    className="p-2 text-gray-500 hover:text-gray-300 hover:bg-gray-800
-                               rounded transition-colors"
-                    title="New query"
+                    className="p-1.5 rounded text-gray-500 hover:bg-gray-800
+                               hover:text-gray-300 transition-colors ml-1"
+                    title="New tab"
                 >
                     <svg
                         className="w-4 h-4"
@@ -150,146 +321,87 @@ export default function QueryTabs({
                     </svg>
                 </button>
             </div>
+            {/* Tab Controls: Environment, Database, Read-Only */}
+            <div className="flex items-center gap-3 px-3 py-2 bg-gray-900 border-b border-gray-800">
+                {/* Environment Selector */}
+                <div className="flex items-center gap-2">
+                    <label className="text-xs text-gray-400">
+                        Environment:
+                    </label>
+                    <select
+                        value={activeTab.environment}
+                        onChange={(e) =>
+                            updateTabEnvironment(activeTab.id, e.target.value)
+                        }
+                        className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        {availableEnvironments.map((env) => (
+                            <option key={env} value={env}>
+                                {environments[env]?.name || env}
+                            </option>
+                        ))}
+                    </select>
+                </div>
 
-            {/* Editor Content */}
-            <div className="flex-1 flex flex-col p-4 bg-gray-900">
-                {/* Context Indicator Bar */}
-                <div className="mb-3 px-3 py-2 bg-gray-800/50 border border-gray-700/50 rounded-lg flex items-center gap-4">
-                    <div className="flex items-center gap-2">
-                        <svg
-                            className="w-4 h-4 text-gray-500"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                        >
+                {/* Database Selector */}
+                <div className="flex items-center gap-2">
+                    <label className="text-xs text-gray-400">Database:</label>
+                    <select
+                        value={activeTab.database || ""}
+                        onChange={(e) => {
+                            updateTabDatabase(activeTab.id, e.target.value);
+                        }}
+                        className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        {databases.map((db) => (
+                            <option key={db} value={db}>
+                                {db}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
+                {/* Read-Only Toggle */}
+                <button
+                    onClick={() => toggleReadOnly(activeTab.id)}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded text-sm transition-colors ${
+                        activeTab.readOnly
+                            ? "bg-amber-900/30 text-amber-400 border border-amber-700"
+                            : "bg-gray-800 text-gray-400 border border-gray-700 hover:bg-gray-700"
+                    }`}
+                    title={
+                        activeTab.readOnly
+                            ? "Read-only mode enabled"
+                            : "Enable read-only mode"
+                    }
+                >
+                    <svg
+                        className="w-3.5 h-3.5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        {activeTab.readOnly ? (
                             <path
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
                                 strokeWidth={2}
-                                d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"
+                                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
                             />
-                        </svg>
-                        <span className="text-xs text-gray-400">
-                            Environment:
-                        </span>
-                        <span className="text-xs font-semibold text-cyan-400">
-                            {selectedEnvironment
-                                .split("-")
-                                .map(
-                                    (word) =>
-                                        word.charAt(0).toUpperCase() +
-                                        word.slice(1),
-                                )
-                                .join(" ")}
-                        </span>
-                    </div>
-                    {selectedDatabase && (
-                        <>
-                            <div className="w-px h-4 bg-gray-700" />
-                            <div className="flex items-center gap-2">
-                                <svg
-                                    className="w-4 h-4 text-gray-500"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"
-                                    />
-                                </svg>
-                                <span className="text-xs text-gray-400">
-                                    Database:
-                                </span>
-                                <span className="text-xs font-semibold text-green-400">
-                                    {selectedDatabase}
-                                </span>
-                            </div>
-                        </>
-                    )}
-                </div>
-
-                <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                        <label className="text-sm font-medium text-gray-400">
-                            SQL Editor
-                        </label>
-                    </div>
-                    <span className="text-xs text-gray-600">
-                        Ctrl+Enter / ⌘+Enter to run • Tab for autocomplete
-                    </span>
-                </div>
-                <div className="rounded-lg border border-gray-700 overflow-hidden mb-3">
-                    <SQLEditor
-                        key={activeTab.id}
-                        value={activeTab.query}
-                        onChange={(newQuery) =>
-                            updateTabQuery(activeTabId, newQuery)
-                        }
-                        onRunQuery={onRunQuery}
-                        tableColumns={tableColumns}
-                    />
-                </div>
-                <div>
-                    <button
-                        onClick={() => onRunQuery(activeTab.query)}
-                        disabled={loading || !activeTab.query.trim()}
-                        className="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500
-                                   disabled:opacity-50 disabled:cursor-not-allowed
-                                   text-sm font-semibold transition-colors flex items-center gap-2"
-                    >
-                        {loading ? (
-                            <>
-                                <svg
-                                    className="animate-spin w-4 h-4"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <circle
-                                        className="opacity-25"
-                                        cx="12"
-                                        cy="12"
-                                        r="10"
-                                        stroke="currentColor"
-                                        strokeWidth="4"
-                                    />
-                                    <path
-                                        className="opacity-75"
-                                        fill="currentColor"
-                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                                    />
-                                </svg>
-                                Running...
-                            </>
                         ) : (
-                            <>
-                                <svg
-                                    className="w-4 h-4"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
-                                    />
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                                    />
-                                </svg>
-                                Run Query
-                            </>
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"
+                            />
                         )}
-                    </button>
-                </div>
+                    </svg>
+                    {activeTab.readOnly ? "Read-only" : "Write mode"}
+                </button>
             </div>
         </div>
     );
-}
+});
+
+export default QueryTabs;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 
 interface QueryResult {
     rows: Record<string, unknown>[];
@@ -20,6 +20,61 @@ export default function ResultsTable({
     loading,
 }: ResultsTableProps) {
     const [copiedCell, setCopiedCell] = useState<string | null>(null);
+    const [scrollTop, setScrollTop] = useState(0);
+    const [containerHeight, setContainerHeight] = useState(600);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+    // Virtual scrolling constants
+    const ROW_HEIGHT = 41; // Height of each row in pixels
+    const OVERSCAN = 5; // Extra rows to render above/below viewport
+
+    // Calculate visible rows based on scroll position
+    const visibleRange = useMemo(() => {
+        if (!result) return { start: 0, end: 0 };
+
+        const visibleRows = Math.ceil(containerHeight / ROW_HEIGHT);
+        const start = Math.floor(scrollTop / ROW_HEIGHT);
+        const end = start + visibleRows;
+
+        return {
+            start: Math.max(0, start - OVERSCAN),
+            end: Math.min(result.rows.length, end + OVERSCAN),
+        };
+    }, [scrollTop, containerHeight, result]);
+
+    // Handle scroll event
+    const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+        setScrollTop(e.currentTarget.scrollTop);
+    };
+
+    // Update container height and reset scroll when result changes
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (scrollContainerRef.current) {
+                scrollContainerRef.current.scrollTop = 0;
+                setContainerHeight(
+                    scrollContainerRef.current.clientHeight || 600,
+                );
+            }
+            setScrollTop(0);
+        }, 0);
+        return () => clearTimeout(timer);
+    }, [result]);
+
+    // Update container height on mount and resize
+    useEffect(() => {
+        const updateHeight = () => {
+            if (scrollContainerRef.current) {
+                setContainerHeight(
+                    scrollContainerRef.current.clientHeight || 600,
+                );
+            }
+        };
+
+        updateHeight();
+        window.addEventListener("resize", updateHeight);
+        return () => window.removeEventListener("resize", updateHeight);
+    }, []);
 
     const copyToClipboard = (text: string, cellId: string) => {
         navigator.clipboard.writeText(text);
@@ -235,101 +290,142 @@ export default function ResultsTable({
             </div>
 
             {/* Results Table */}
-            <div className="flex-1 overflow-auto">
-                <table className="min-w-full text-sm">
-                    <thead className="bg-gray-900 sticky top-0 z-10">
-                        <tr>
-                            {result.fields.map((field) => (
-                                <th
-                                    key={field}
-                                    className="px-4 py-2.5 text-left text-xs font-semibold
-                                               text-gray-400 uppercase tracking-wider
-                                               border-b border-gray-800 whitespace-nowrap"
-                                >
-                                    {field}
-                                </th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-800">
-                        {result.rows.map((row, rowIdx) => (
-                            <tr
-                                key={rowIdx}
-                                className="hover:bg-gray-900/50 transition-colors"
+            <div
+                ref={scrollContainerRef}
+                onScroll={handleScroll}
+                className="flex-1 overflow-auto"
+            >
+                <div className="min-w-full">
+                    {/* Header */}
+                    <div className="bg-gray-900 sticky top-0 z-10 flex border-b border-gray-800">
+                        {result.fields.map((field, idx) => (
+                            <div
+                                key={field}
+                                className="px-4 py-2.5 text-left text-xs font-semibold
+                                           text-gray-400 uppercase tracking-wider
+                                           whitespace-nowrap flex-shrink-0"
+                                style={{
+                                    width: idx === 0 ? "200px" : "180px",
+                                    minWidth: idx === 0 ? "200px" : "180px",
+                                }}
                             >
-                                {result.fields.map((field) => {
-                                    const cellId = `${rowIdx}-${field}`;
-                                    const value = row[field];
-                                    const displayValue =
-                                        value === null ? "NULL" : String(value);
-
-                                    return (
-                                        <td
-                                            key={field}
-                                            className="px-4 py-2 text-gray-300 font-mono text-xs
-                                                       whitespace-nowrap group relative"
-                                        >
-                                            <div className="flex items-center gap-2">
-                                                <span
-                                                    className={`truncate max-w-xs ${
-                                                        value === null
-                                                            ? "text-gray-600 italic"
-                                                            : ""
-                                                    }`}
-                                                    title={displayValue}
-                                                >
-                                                    {displayValue}
-                                                </span>
-                                                <button
-                                                    onClick={() =>
-                                                        copyToClipboard(
-                                                            displayValue,
-                                                            cellId,
-                                                        )
-                                                    }
-                                                    className="opacity-0 group-hover:opacity-100 p-1 rounded
-                                                               hover:bg-gray-800 text-gray-500 hover:text-gray-300
-                                                               transition-all"
-                                                    title="Copy value"
-                                                >
-                                                    {copiedCell === cellId ? (
-                                                        <svg
-                                                            className="w-3 h-3 text-green-400"
-                                                            fill="none"
-                                                            stroke="currentColor"
-                                                            viewBox="0 0 24 24"
-                                                        >
-                                                            <path
-                                                                strokeLinecap="round"
-                                                                strokeLinejoin="round"
-                                                                strokeWidth={2}
-                                                                d="M5 13l4 4L19 7"
-                                                            />
-                                                        </svg>
-                                                    ) : (
-                                                        <svg
-                                                            className="w-3 h-3"
-                                                            fill="none"
-                                                            stroke="currentColor"
-                                                            viewBox="0 0 24 24"
-                                                        >
-                                                            <path
-                                                                strokeLinecap="round"
-                                                                strokeLinejoin="round"
-                                                                strokeWidth={2}
-                                                                d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                                                            />
-                                                        </svg>
-                                                    )}
-                                                </button>
-                                            </div>
-                                        </td>
-                                    );
-                                })}
-                            </tr>
+                                {field}
+                            </div>
                         ))}
-                    </tbody>
-                </table>
+                    </div>
+
+                    {/* Body */}
+                    <div
+                        className="relative"
+                        style={{
+                            height: `${result.rows.length * ROW_HEIGHT}px`,
+                        }}
+                    >
+                        {/* Render only visible rows */}
+                        {result.rows
+                            .slice(visibleRange.start, visibleRange.end)
+                            .map((row, idx) => {
+                                const rowIdx = visibleRange.start + idx;
+                                return (
+                                    <div
+                                        key={rowIdx}
+                                        className="absolute w-full flex hover:bg-gray-900/50 transition-colors border-b border-gray-800/50"
+                                        style={{
+                                            top: `${rowIdx * ROW_HEIGHT}px`,
+                                            height: `${ROW_HEIGHT}px`,
+                                        }}
+                                    >
+                                        {result.fields.map(
+                                            (field, fieldIdx) => {
+                                                const cellId = `${rowIdx}-${field}`;
+                                                const value = row[field];
+                                                const displayValue =
+                                                    value === null
+                                                        ? "NULL"
+                                                        : String(value);
+
+                                                return (
+                                                    <div
+                                                        key={field}
+                                                        className="px-4 py-2 text-gray-300 font-mono text-xs
+                                                               whitespace-nowrap group relative flex items-center flex-shrink-0"
+                                                        style={{
+                                                            width:
+                                                                fieldIdx === 0
+                                                                    ? "200px"
+                                                                    : "180px",
+                                                            minWidth:
+                                                                fieldIdx === 0
+                                                                    ? "200px"
+                                                                    : "180px",
+                                                        }}
+                                                    >
+                                                        <span
+                                                            className={`truncate flex-1 ${
+                                                                value === null
+                                                                    ? "text-gray-600 italic"
+                                                                    : ""
+                                                            }`}
+                                                            title={displayValue}
+                                                        >
+                                                            {displayValue}
+                                                        </span>
+                                                        <button
+                                                            onClick={() =>
+                                                                copyToClipboard(
+                                                                    displayValue,
+                                                                    cellId,
+                                                                )
+                                                            }
+                                                            className="opacity-0 group-hover:opacity-100 p-1 rounded ml-2
+                                                                   hover:bg-gray-800 text-gray-500 hover:text-gray-300
+                                                                   transition-all flex-shrink-0"
+                                                            title="Copy value"
+                                                        >
+                                                            {copiedCell ===
+                                                            cellId ? (
+                                                                <svg
+                                                                    className="w-3 h-3 text-green-400"
+                                                                    fill="none"
+                                                                    stroke="currentColor"
+                                                                    viewBox="0 0 24 24"
+                                                                >
+                                                                    <path
+                                                                        strokeLinecap="round"
+                                                                        strokeLinejoin="round"
+                                                                        strokeWidth={
+                                                                            2
+                                                                        }
+                                                                        d="M5 13l4 4L19 7"
+                                                                    />
+                                                                </svg>
+                                                            ) : (
+                                                                <svg
+                                                                    className="w-3 h-3"
+                                                                    fill="none"
+                                                                    stroke="currentColor"
+                                                                    viewBox="0 0 24 24"
+                                                                >
+                                                                    <path
+                                                                        strokeLinecap="round"
+                                                                        strokeLinejoin="round"
+                                                                        strokeWidth={
+                                                                            2
+                                                                        }
+                                                                        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                                                                    />
+                                                                </svg>
+                                                            )}
+                                                        </button>
+                                                    </div>
+                                                );
+                                            },
+                                        )}
+                                    </div>
+                                );
+                            })}
+                    </div>
+                </div>
             </div>
         </div>
     );

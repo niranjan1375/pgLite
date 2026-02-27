@@ -16,7 +16,6 @@ interface Table {
 interface DatabaseTreeProps {
     databases: string[];
     selectedDatabase: string;
-    onDatabaseChange: (db: string) => void;
     tableColumns: Record<string, Column[]>;
     onTablePreview: (table: Table) => void;
     loading: boolean;
@@ -25,7 +24,6 @@ interface DatabaseTreeProps {
 export default function DatabaseTree({
     databases,
     selectedDatabase,
-    onDatabaseChange,
     tableColumns,
     onTablePreview,
     loading,
@@ -55,25 +53,24 @@ export default function DatabaseTree({
 
     return (
         <div className="flex flex-col h-full">
-            {/* Database Selector */}
+            {/* Schema Browser Header */}
             <div className="p-3 border-b border-gray-800">
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block">
-                    Database
-                </label>
-                <select
-                    value={selectedDatabase}
-                    onChange={(e) => onDatabaseChange(e.target.value)}
-                    disabled={loading}
-                    className="w-full rounded bg-gray-800 border border-gray-700 text-gray-100
-                       text-sm px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500
-                       disabled:opacity-50"
-                >
-                    {databases.map((db) => (
-                        <option key={db} value={db}>
-                            {db}
-                        </option>
-                    ))}
-                </select>
+                <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    Schema Browser
+                </h2>
+                {selectedDatabase && (
+                    <p className="text-xs text-gray-400 mt-1 font-mono">
+                        {selectedDatabase}
+                        <span className="text-gray-600 ml-2">
+                            {Object.keys(groupedTables).reduce(
+                                (sum, schema) =>
+                                    sum + groupedTables[schema].length,
+                                0,
+                            )}{" "}
+                            tables
+                        </span>
+                    </p>
+                )}
             </div>
 
             {/* Tables Tree */}
