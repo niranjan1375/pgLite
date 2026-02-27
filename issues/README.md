@@ -20,9 +20,9 @@
 ### [P0-002] Unlimited Query Result Size
 
 **File**: `issues/P0-002-unlimited-results.md`  
-**Status**: Open  
+**Status**: ✅ Fixed (2026-02-27)  
 **Risk**: DoS, memory overflow, browser crash  
-**Effort**: 2 hours
+**Effort**: 2 hours (Actual: 30 min)
 
 ### [P0-003] No Query Timeout
 
@@ -86,10 +86,10 @@
 ## Quick Stats
 
 - **Total Issues**: 9
-- **P0 (Critical)**: 2 open, 1 fixed
+- **P0 (Critical)**: 1 open, 2 fixed
 - **P1 (High)**: 3 open
 - **P2 (Medium)**: 3 open
-- **Estimated Remaining Effort**: ~2 weeks
+- **Estimated Remaining Effort**: ~1.5 weeks
 
 ---
 

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPool } from "@/lib/db";
 
+// Server-side row limit to prevent DoS and memory overflow
+const MAX_ROWS = 10000;
+
 /**
  * Helper to detect if a query is write operation
  */
@@ -54,10 +57,23 @@ export async function POST(req: NextRequest) {
 
         const result = await pool.query(query);
 
+        // Enforce row limit to prevent DoS and memory overflow
+        if (result.rows.length > MAX_ROWS) {
+            return NextResponse.json(
+                {
+                    error: `Query returned ${result.rows.length.toLocaleString()} rows (limit: ${MAX_ROWS.toLocaleString()}). Please add a LIMIT clause to reduce the result set.`,
+                    rowCount: result.rows.length,
+                    truncated: true,
+                },
+                { status: 413 }, // Payload Too Large
+            );
+        }
+
         return NextResponse.json({
             rows: result.rows,
             rowCount: result.rowCount ?? 0,
             fields: result.fields.map((f) => f.name),
+            truncated: false,
         });
     } catch (err: unknown) {
         const message =
