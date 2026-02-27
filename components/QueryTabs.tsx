@@ -24,6 +24,7 @@ interface QueryTabsProps {
     onRunQuery: (query: string) => void;
     loading: boolean;
     selectedDatabase: string;
+    selectedEnvironment: string;
 }
 
 export default function QueryTabs({
@@ -31,6 +32,7 @@ export default function QueryTabs({
     onRunQuery,
     loading,
     selectedDatabase,
+    selectedEnvironment,
 }: QueryTabsProps) {
     const [tabs, setTabs] = useState<QueryTab[]>([
         { id: "1", name: "Query 1", query: "SELECT version();" },
@@ -43,7 +45,7 @@ export default function QueryTabs({
     const addTab = () => {
         const newTab: QueryTab = {
             id: String(nextTabId),
-            name: `Query ${nextTabId}`,
+            name: `Playground ${nextTabId}`,
             query: "",
         };
         setTabs([...tabs, newTab]);
@@ -151,17 +153,69 @@ export default function QueryTabs({
 
             {/* Editor Content */}
             <div className="flex-1 flex flex-col p-4 bg-gray-900">
+                {/* Context Indicator Bar */}
+                <div className="mb-3 px-3 py-2 bg-gray-800/50 border border-gray-700/50 rounded-lg flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                        <svg
+                            className="w-4 h-4 text-gray-500"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"
+                            />
+                        </svg>
+                        <span className="text-xs text-gray-400">
+                            Environment:
+                        </span>
+                        <span className="text-xs font-semibold text-cyan-400">
+                            {selectedEnvironment
+                                .split("-")
+                                .map(
+                                    (word) =>
+                                        word.charAt(0).toUpperCase() +
+                                        word.slice(1),
+                                )
+                                .join(" ")}
+                        </span>
+                    </div>
+                    {selectedDatabase && (
+                        <>
+                            <div className="w-px h-4 bg-gray-700" />
+                            <div className="flex items-center gap-2">
+                                <svg
+                                    className="w-4 h-4 text-gray-500"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"
+                                    />
+                                </svg>
+                                <span className="text-xs text-gray-400">
+                                    Database:
+                                </span>
+                                <span className="text-xs font-semibold text-green-400">
+                                    {selectedDatabase}
+                                </span>
+                            </div>
+                        </>
+                    )}
+                </div>
+
                 <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3">
                         <label className="text-sm font-medium text-gray-400">
                             SQL Editor
                         </label>
-                        {selectedDatabase && (
-                            <span className="text-xs px-2 py-1 rounded bg-blue-900/30 text-blue-400 border border-blue-800/50">
-                                <span className="text-gray-500">DB:</span>{" "}
-                                {selectedDatabase}
-                            </span>
-                        )}
                     </div>
                     <span className="text-xs text-gray-600">
                         Ctrl+Enter / ⌘+Enter to run • Tab for autocomplete

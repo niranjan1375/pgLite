@@ -6,6 +6,8 @@ A minimal full-stack PostgreSQL web admin tool built with Next.js (App Router), 
 
 - **SQL Editor** – Write and execute SQL queries with syntax highlighting via a clean textarea
 - **Results Table** – Dynamically rendered table with column headers and row data
+- **Multi-Environment Support** – Switch between Loadtest, Sandbox, Staging, VegaPay UAT, Unity UAT, and Development environments
+- **Environment Selector** – Visual dropdown to switch database environments instantly with VPN indicators
 - **Error Handling** – Clear error messages for query failures
 - **Row Count** – Displays number of rows returned
 - **Keyboard Shortcut** – `Ctrl+Enter` / `⌘+Enter` to run queries
@@ -23,33 +25,52 @@ A minimal full-stack PostgreSQL web admin tool built with Next.js (App Router), 
 
 1. **Clone & install dependencies:**
 
-   ```bash
-   npm install
-   ```
+    ```bash
+    npm install
+    ```
 
 2. **Configure environment variables:**
 
-   Copy `.env.local.example` to `.env.local` and fill in your database credentials:
+    The application supports multiple environments (Loadtest, Sandbox, Staging, VegaPay UAT, Unity UAT, Development).
 
-   ```bash
-   cp .env.local.example .env.local
-   ```
+    **Option A - Quick Start (Single Environment):**
 
-   ```env
-   POSTGRES_HOST=localhost
-   POSTGRES_PORT=5432
-   POSTGRES_USER=postgres
-   POSTGRES_PASSWORD=your_password
-   POSTGRES_DB=postgres
-   ```
+    Copy `.env.local.example` to `.env.local` for basic setup:
 
-3. **Run the development server:**
+    ```bash
+    cp .env.local.example .env.local
+    ```
 
-   ```bash
-   npm run dev
-   ```
+    ```env
+    POSTGRES_HOST=localhost
+    POSTGRES_PORT=5432
+    POSTGRES_USER=postgres
+    POSTGRES_PASSWORD=your_password
+    POSTGRES_DB=postgres
+    ```
 
-4. Open [http://localhost:3000](http://localhost:3000) in your browser.
+    **Option B - Multi-Environment Setup:**
+
+    All environments are pre-configured in `lib/environments.ts`:
+    - **Loadtest Azure** - Load testing environment (no VPN)
+    - **Sandbox** - Sandbox environment (no VPN)
+    - **Staging** - Staging environment (no VPN)
+    - **VegaPay UAT Snapshot** - Snapshot database 🔒 (requires VPN)
+    - **VegaPay UAT** - UAT environment 🔒 (requires VPN)
+    - **Unity UAT** - Unity environment 🔒 (requires VPN)
+    - **Development** - Local development
+
+    You can also create individual `.env.{environment}` files for each environment.
+
+    📖 See [Multi-Environment Configuration Guide](docs/MULTI_ENVIRONMENT.md) for detailed setup.
+
+    **Note:** VPN-required environments 🔒 need an active VPN connection to work.
+
+    ```bash
+    npm run dev
+    ```
+
+3. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## API
 
@@ -58,11 +79,13 @@ A minimal full-stack PostgreSQL web admin tool built with Next.js (App Router), 
 Executes a SQL query and returns results.
 
 **Request body:**
+
 ```json
 { "query": "SELECT version();" }
 ```
 
 **Success response:**
+
 ```json
 {
   "rows": [...],
@@ -72,6 +95,7 @@ Executes a SQL query and returns results.
 ```
 
 **Error response:**
+
 ```json
 { "error": "relation \"foo\" does not exist" }
 ```

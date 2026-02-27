@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Pool } from "pg";
-import pool from "@/lib/db";
+import { getPool } from "@/lib/db";
+import { environments } from "@/lib/environments";
 
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
         const query: string = body?.query?.trim();
         const database: string = body?.database;
+        const environment: string = body?.environment || "loadtest";
 
         if (!query) {
             return NextResponse.json(
@@ -16,15 +18,17 @@ export async function POST(req: NextRequest) {
         }
 
         // Use a specific database if provided, otherwise use default pool
-        let client = pool;
+        let client = getPool(environment);
         let tempPool: Pool | null = null;
 
-        if (database && database !== process.env.POSTGRES_DB) {
+        const envConfig = environments[environment] || environments.loadtest;
+
+        if (database && database !== envConfig.database) {
             tempPool = new Pool({
-                host: process.env.POSTGRES_HOST,
-                port: Number(process.env.POSTGRES_PORT) || 5432,
-                user: process.env.POSTGRES_USER,
-                password: process.env.POSTGRES_PASSWORD,
+                host: envConfig.host,
+                port: envConfig.port,
+                user: envConfig.user,
+                password: envConfig.password,
                 database: database,
                 ssl: {
                     rejectUnauthorized: false,

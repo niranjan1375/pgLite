@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Pool } from "pg";
+import { environments } from "@/lib/environments";
 
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
         const database: string = body?.database;
+        const environment: string = body?.environment || "loadtest";
 
         if (!database) {
             return NextResponse.json(
@@ -13,12 +15,14 @@ export async function POST(req: NextRequest) {
             );
         }
 
+        const envConfig = environments[environment] || environments.loadtest;
+
         // Create a temporary pool for the specific database
         const tempPool = new Pool({
-            host: process.env.POSTGRES_HOST,
-            port: Number(process.env.POSTGRES_PORT) || 5432,
-            user: process.env.POSTGRES_USER,
-            password: process.env.POSTGRES_PASSWORD,
+            host: envConfig.host,
+            port: envConfig.port,
+            user: envConfig.user,
+            password: envConfig.password,
             database: database,
             ssl: {
                 rejectUnauthorized: false,

@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import DatabaseTree from "@/components/DatabaseTree";
 import ResultsTable from "@/components/ResultsTable";
+import EnvironmentSelector from "@/components/EnvironmentSelector";
 
 const QueryTabs = dynamic(() => import("@/components/QueryTabs"), {
     ssr: false,
@@ -48,25 +49,27 @@ export default function Home() {
     );
     const [loadingDatabases, setLoadingDatabases] = useState(false);
     const [loadingTables, setLoadingTables] = useState(false);
+    const [selectedEnvironment, setSelectedEnvironment] =
+        useState<string>("loadtest");
 
     // Keep ref in sync with state
     useEffect(() => {
         selectedDatabaseRef.current = selectedDatabase;
     }, [selectedDatabase]);
 
-    // Fetch databases on mount
+    // Fetch databases on mount and when environment changes
     useEffect(() => {
         const fetchDatabases = async () => {
             setLoadingDatabases(true);
             try {
-                const res = await fetch("/api/databases");
+                const res = await fetch(
+                    `/api/databases?environment=${selectedEnvironment}`,
+                );
                 const data = await res.json();
                 if (!data.error) {
                     setDatabases(data.databases);
                     // Set default database
-                    const defaultDb =
-                        process.env.NEXT_PUBLIC_POSTGRES_DB ||
-                        data.databases[0];
+                    const defaultDb = data.databases[0];
                     setSelectedDatabase(defaultDb);
                 }
             } catch (err) {
@@ -76,7 +79,7 @@ export default function Home() {
             }
         };
         fetchDatabases();
-    }, []);
+    }, [selectedEnvironment]);
 
     // Fetch tables and columns when database changes
     useEffect(() => {
@@ -88,7 +91,10 @@ export default function Home() {
                 const columnsRes = await fetch("/api/columns", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ database: selectedDatabase }),
+                    body: JSON.stringify({
+                        database: selectedDatabase,
+                        environment: selectedEnvironment,
+                    }),
                 });
 
                 const columnsData = await columnsRes.json();
@@ -103,7 +109,7 @@ export default function Home() {
             }
         };
         fetchTablesAndColumns();
-    }, [selectedDatabase]);
+    }, [selectedDatabase, selectedEnvironment]);
 
     const runQuery = useCallback(
         async (query: string) => {
@@ -122,6 +128,7 @@ export default function Home() {
                     body: JSON.stringify({
                         query,
                         database: currentDatabase,
+                        environment: selectedEnvironment,
                     }),
                 });
                 const data: QueryResult | QueryError = await res.json();
@@ -136,7 +143,7 @@ export default function Home() {
                 setLoading(false);
             }
         },
-        [], // No dependencies since we're using ref
+        [selectedEnvironment],
     );
 
     const handleTablePreview = useCallback(
@@ -161,6 +168,11 @@ export default function Home() {
                     <p className="text-xs text-gray-500 mt-1">
                         PostgreSQL Database Manager
                     </p>
+                    <div className="mt-3">
+                        <EnvironmentSelector
+                            onEnvironmentChange={setSelectedEnvironment}
+                        />
+                    </div>
                 </div>
 
                 <DatabaseTree
@@ -182,6 +194,7 @@ export default function Home() {
                         onRunQuery={runQuery}
                         loading={loading}
                         selectedDatabase={selectedDatabase}
+                        selectedEnvironment={selectedEnvironment}
                     />
                 </div>
 

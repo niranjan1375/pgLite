@@ -1,8 +1,12 @@
-import { NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { NextRequest, NextResponse } from "next/server";
+import { getPool } from "@/lib/db";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
     try {
+        const searchParams = req.nextUrl.searchParams;
+        const environment = searchParams.get("environment") || "loadtest";
+
+        const pool = getPool(environment);
         const result = await pool.query(`
       SELECT datname 
       FROM pg_database 
