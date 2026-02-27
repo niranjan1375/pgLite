@@ -33,25 +33,30 @@ A minimal full-stack PostgreSQL web admin tool built with Next.js (App Router), 
 
     The application supports multiple environments (Loadtest, Sandbox, Staging, VegaPay UAT, Unity UAT, Development).
 
-    **Option A - Quick Start (Single Environment):**
+    **Setup Steps:**
 
-    Copy `.env.local.example` to `.env.local` for basic setup:
+    a. Copy the example environment file:
 
     ```bash
     cp .env.local.example .env.local
     ```
 
+    b. Edit `.env.local` and fill in your actual credentials for each environment:
+
     ```env
-    POSTGRES_HOST=localhost
-    POSTGRES_PORT=5432
-    POSTGRES_USER=postgres
-    POSTGRES_PASSWORD=your_password
-    POSTGRES_DB=postgres
+    # All 7 environments are configured with namespaced variables
+    # Example format:
+    LOADTEST_HOST=your-host.database.azure.com
+    LOADTEST_PORT=5432
+    LOADTEST_USER=postgres
+    LOADTEST_PASSWORD=your_password
+    LOADTEST_DB=support
+    # ... repeat for SANDBOX_, STAGING_, VEGAPAY_UAT_SNAPSHOT_, etc.
     ```
 
-    **Option B - Multi-Environment Setup:**
+    c. **Security Note:** `.env.local` is excluded from version control. Never commit credentials!
 
-    All environments are pre-configured in `lib/environments.ts`:
+    d. Configured environments:
     - **Loadtest Azure** - Load testing environment (no VPN)
     - **Sandbox** - Sandbox environment (no VPN)
     - **Staging** - Staging environment (no VPN)
@@ -59,10 +64,6 @@ A minimal full-stack PostgreSQL web admin tool built with Next.js (App Router), 
     - **VegaPay UAT** - UAT environment 🔒 (requires VPN)
     - **Unity UAT** - Unity environment 🔒 (requires VPN)
     - **Development** - Local development
-
-    You can also create individual `.env.{environment}` files for each environment.
-
-    📖 See [Multi-Environment Configuration Guide](docs/MULTI_ENVIRONMENT.md) for detailed setup.
 
     **Note:** VPN-required environments 🔒 need an active VPN connection to work.
 

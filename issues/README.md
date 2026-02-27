@@ -13,9 +13,9 @@
 ### [P0-001] Credentials Hardcoded in Source
 
 **File**: `issues/P0-001-credentials.md`  
-**Status**: Open  
+**Status**: ✅ Fixed (2026-02-27)  
 **Risk**: All 7 databases compromised if repo leaked  
-**Effort**: 1 hour
+**Effort**: 1 hour (Actual: 30 min)
 
 ### [P0-002] Unlimited Query Result Size
 
@@ -86,10 +86,10 @@
 ## Quick Stats
 
 - **Total Issues**: 9
-- **P0 (Critical)**: 3
-- **P1 (High)**: 3
-- **P2 (Medium)**: 3
-- **Estimated Total Effort**: ~2.5 weeks
+- **P0 (Critical)**: 2 open, 1 fixed
+- **P1 (High)**: 3 open
+- **P2 (Medium)**: 3 open
+- **Estimated Remaining Effort**: ~2 weeks
 
 ---
 
