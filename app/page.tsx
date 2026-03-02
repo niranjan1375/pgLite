@@ -31,6 +31,7 @@ interface QueryResult {
     rowCount: number;
     fields: string[];
     truncated?: boolean;
+    routedDatabase?: string; // Present when workspace mode auto-routes to a database
 }
 
 interface QueryError {
@@ -62,6 +63,7 @@ export default function Home() {
         environment: string;
         database: string;
         readOnly: boolean;
+        mode?: "standard" | "workspace";
     } | null>(null);
     const queryTabsRef = useRef<QueryTabsRef>(null);
 
@@ -142,6 +144,7 @@ export default function Home() {
             environment: string,
             database: string,
             readOnly: boolean,
+            mode: "standard" | "workspace" = "standard",
         ) => {
             if (!query.trim()) return;
 
@@ -153,15 +156,22 @@ export default function Home() {
             const startTime = performance.now();
 
             try {
-                const res = await fetch("/api/query", {
+                // Use workspace-query endpoint for workspace mode
+                const endpoint =
+                    mode === "workspace"
+                        ? "/api/workspace-query"
+                        : "/api/query";
+
+                // Workspace mode only needs query and environment (DB is auto-detected)
+                const requestBody =
+                    mode === "workspace"
+                        ? { query, environment }
+                        : { query, database, environment, readOnly };
+
+                const res = await fetch(endpoint, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        query,
-                        database,
-                        environment,
-                        readOnly,
-                    }),
+                    body: JSON.stringify(requestBody),
                 });
                 const data: QueryResult | QueryError = await res.json();
 
@@ -192,8 +202,21 @@ export default function Home() {
             environment: string,
             database: string,
             readOnly: boolean,
+            mode: "standard" | "workspace" = "standard",
         ) => {
             if (!query.trim()) return;
+
+            // Workspace mode bypasses write checks and production warnings
+            if (mode === "workspace") {
+                await executeQuery(
+                    query,
+                    environment,
+                    database,
+                    readOnly,
+                    "workspace",
+                );
+                return;
+            }
 
             // Check if this is a write query in production
             if (
@@ -201,13 +224,25 @@ export default function Home() {
                 isWriteQuery(query) &&
                 isProdEnvironment(environment)
             ) {
-                setPendingQuery({ query, environment, database, readOnly });
+                setPendingQuery({
+                    query,
+                    environment,
+                    database,
+                    readOnly,
+                    mode,
+                });
                 setShowProdWarning(true);
                 return;
             }
 
             // Execute query immediately
-            await executeQuery(query, environment, database, readOnly);
+            await executeQuery(
+                query,
+                environment,
+                database,
+                readOnly,
+                "standard",
+            );
         },
         [isWriteQuery, isProdEnvironment, executeQuery],
     );
@@ -403,19 +438,26 @@ export default function Home() {
                                                 val || "",
                                             );
                                         }}
-                                        onRunQuery={() => {
+                                        onRunQuery={(queryToRun) => {
                                             const currentTab =
                                                 queryTabsRef.current?.getActiveTab();
                                             if (currentTab) {
                                                 runQuery(
-                                                    currentTab.query,
+                                                    queryToRun,
                                                     currentTab.environment,
                                                     currentTab.database,
                                                     currentTab.readOnly,
+                                                    currentTab.mode ||
+                                                        "standard",
                                                 );
                                             }
                                         }}
                                         tableColumns={tableColumns}
+                                        databases={
+                                            databasesByEnv[
+                                                activeTab.environment
+                                            ] || []
+                                        }
                                     />
                                 )}
                             </div>
@@ -438,6 +480,7 @@ export default function Home() {
                                                 currentTab.environment,
                                                 currentTab.database,
                                                 currentTab.readOnly,
+                                                currentTab.mode || "standard",
                                             );
                                         }
                                     }}
@@ -468,6 +511,18 @@ export default function Home() {
 
                         {/* Results */}
                         <div className="flex-1 flex flex-col min-h-0">
+                            {result?.routedDatabase && (
+                                <div
+                                    className="px-3 py-1.5 text-[11px] uppercase tracking-wide border-b flex items-center gap-2"
+                                    style={{
+                                        background: "rgba(59, 130, 246, 0.1)",
+                                        borderColor: "var(--accent)",
+                                        color: "var(--accent)",
+                                    }}
+                                >
+                                    🎯 AUTO DB: {result.routedDatabase}
+                                </div>
+                            )}
                             {result?.truncated && (
                                 <div
                                     className="px-3 py-1.5 text-[11px] uppercase tracking-wide border-b flex items-center gap-2"
@@ -521,6 +576,7 @@ export default function Home() {
                                 pendingQuery.environment,
                                 pendingQuery.database,
                                 pendingQuery.readOnly,
+                                pendingQuery.mode || "standard",
                             );
                         }
                         setShowProdWarning(false);

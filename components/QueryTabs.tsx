@@ -18,6 +18,7 @@ interface QueryTab {
     environment: string;
     database: string;
     readOnly: boolean;
+    mode?: "standard" | "workspace"; // workspace mode auto-routes to DB based on table prefix
 }
 
 export type { QueryTab };
@@ -45,11 +46,31 @@ function generateTabName(environment: string, database: string): string {
     return `${shortEnv} • ${shortDb}`;
 }
 
-const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
-    { globalDatabase, globalEnvironment, databases, onTabChange },
-    ref,
-) {
-    const [tabs, setTabs] = useState<QueryTab[]>([
+// LocalStorage key for tabs
+const TABS_STORAGE_KEY = "pgLite_queryTabs";
+const ACTIVE_TAB_STORAGE_KEY = "pgLite_activeTabId";
+
+// Load tabs from localStorage
+function loadTabsFromStorage(
+    globalEnvironment: string,
+    globalDatabase: string,
+): QueryTab[] {
+    if (typeof window === "undefined") return [];
+
+    try {
+        const stored = localStorage.getItem(TABS_STORAGE_KEY);
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+                return parsed;
+            }
+        }
+    } catch (error) {
+        console.error("Failed to load tabs from localStorage:", error);
+    }
+
+    // Default tab if nothing in storage
+    return [
         {
             id: "1",
             name: "Playground 1",
@@ -58,10 +79,72 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
             database: globalDatabase,
             readOnly: false,
         },
-    ]);
-    console.log("🚀 ~ tabs:", tabs);
-    const [activeTabId, setActiveTabId] = useState("1");
-    const [nextTabId, setNextTabId] = useState(2);
+    ];
+}
+
+// Save tabs to localStorage
+function saveTabsToStorage(tabs: QueryTab[]) {
+    if (typeof window === "undefined") return;
+
+    try {
+        localStorage.setItem(TABS_STORAGE_KEY, JSON.stringify(tabs));
+    } catch (error) {
+        console.error("Failed to save tabs to localStorage:", error);
+    }
+}
+
+// Load active tab ID from localStorage
+function loadActiveTabId(loadedTabs: QueryTab[]): string {
+    if (typeof window === "undefined") return loadedTabs[0]?.id || "1";
+
+    try {
+        const stored = localStorage.getItem(ACTIVE_TAB_STORAGE_KEY);
+        if (stored && loadedTabs.some((t) => t.id === stored)) {
+            return stored;
+        }
+    } catch (error) {
+        console.error("Failed to load active tab ID:", error);
+    }
+
+    return loadedTabs[0]?.id || "1";
+}
+
+// Save active tab ID to localStorage
+function saveActiveTabId(tabId: string) {
+    if (typeof window === "undefined") return;
+
+    try {
+        localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, tabId);
+    } catch (error) {
+        console.error("Failed to save active tab ID:", error);
+    }
+}
+
+const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
+    { globalDatabase, globalEnvironment, databases, onTabChange },
+    ref,
+) {
+    const [tabs, setTabs] = useState<QueryTab[]>(() =>
+        loadTabsFromStorage(globalEnvironment, globalDatabase),
+    );
+    const [activeTabId, setActiveTabId] = useState(() => {
+        const loadedTabs = loadTabsFromStorage(
+            globalEnvironment,
+            globalDatabase,
+        );
+        return loadActiveTabId(loadedTabs);
+    });
+    const [nextTabId, setNextTabId] = useState(() => {
+        const loadedTabs = loadTabsFromStorage(
+            globalEnvironment,
+            globalDatabase,
+        );
+        const maxId = Math.max(
+            ...loadedTabs.map((t) => parseInt(t.id) || 0),
+            0,
+        );
+        return maxId + 1;
+    });
     const lastNotifiedTabRef = useRef<{
         id: string;
         environment: string;
@@ -106,6 +189,16 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
             },
         },
     ]);
+
+    // Save tabs to localStorage whenever they change
+    useEffect(() => {
+        saveTabsToStorage(tabs);
+    }, [tabs]);
+
+    // Save active tab ID to localStorage whenever it changes
+    useEffect(() => {
+        saveActiveTabId(activeTabId);
+    }, [activeTabId]);
 
     // Notify parent when active tab changes (but not when query changes)
     useEffect(() => {
@@ -215,6 +308,22 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
             environment: globalEnvironment,
             database: globalDatabase,
             readOnly: false,
+            mode: "standard",
+        };
+        setTabs([...tabs, newTab]);
+        setActiveTabId(String(nextTabId));
+        setNextTabId(nextTabId + 1);
+    };
+
+    const addWorkspaceTab = () => {
+        const newTab: QueryTab = {
+            id: String(nextTabId),
+            name: `🎯 Workspace ${nextTabId}`,
+            query: "-- Workspace Mode: Use db_name.table_name syntax\n-- Example: SELECT * FROM my_db.users;\n\n",
+            environment: globalEnvironment,
+            database: "", // Not needed in workspace mode
+            readOnly: false,
+            mode: "workspace",
         };
         setTabs([...tabs, newTab]);
         setActiveTabId(String(nextTabId));
@@ -291,6 +400,7 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
                         title="Double-click to rename"
                     >
                         {tab.readOnly && "🔒 "}
+                        {tab.mode === "workspace" && "🎯 "}
                         {displayName}
                         {isActive && (
                             <div
@@ -318,9 +428,23 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
                 onClick={addTab}
                 className="px-2 py-1 text-[14px] hover:opacity-80 transition-opacity"
                 style={{ color: "var(--text-muted)" }}
-                title="New tab"
+                title="New standard tab (⌘T)"
             >
                 +
+            </button>
+
+            {/* Add Workspace Tab */}
+            <button
+                onClick={addWorkspaceTab}
+                className="px-2 py-1 text-[11px] hover:opacity-80 transition-opacity border"
+                style={{
+                    color: "var(--accent)",
+                    borderColor: "var(--accent)",
+                    background: "rgba(59, 130, 246, 0.1)",
+                }}
+                title="New workspace tab (auto-routes to DB based on table prefix)"
+            >
+                🎯 WS
             </button>
         </div>
     );
