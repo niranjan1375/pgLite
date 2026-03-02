@@ -17,6 +17,7 @@ interface DatabaseTreeProps {
     selectedDatabase: string;
     tableColumns: Record<string, Column[]>;
     onTablePreview: (table: Table) => void;
+    onRefresh?: () => void;
     loading: boolean;
 }
 
@@ -24,6 +25,7 @@ export default function DatabaseTree({
     selectedDatabase,
     tableColumns,
     onTablePreview,
+    onRefresh,
     loading,
 }: DatabaseTreeProps) {
     const [expandedTables, setExpandedTables] = useState<Set<string>>(
@@ -56,36 +58,49 @@ export default function DatabaseTree({
         >
             {/* Schema Browser Header */}
             <div
-                className="px-3 py-2 border-b"
+                className="px-3 py-2 border-b flex justify-between items-center"
                 style={{
                     borderColor: "var(--border)",
                     background: "var(--panel)",
                 }}
             >
-                <h2
-                    className="text-[11px] uppercase tracking-wider"
-                    style={{ color: "var(--text-muted)" }}
-                >
-                    Schema
-                </h2>
-                {selectedDatabase && (
-                    <p
-                        className="text-[11px] mt-1"
-                        style={{ color: "var(--text-secondary)" }}
+                <div>
+                    <h2
+                        className="text-[11px] uppercase tracking-wider"
+                        style={{ color: "var(--text-muted)" }}
                     >
-                        {selectedDatabase}
-                        <span
-                            className="ml-2"
-                            style={{ color: "var(--text-muted)" }}
+                        Schema
+                    </h2>
+                    {selectedDatabase && (
+                        <p
+                            className="text-[11px] mt-1"
+                            style={{ color: "var(--text-secondary)" }}
                         >
-                            {Object.keys(groupedTables).reduce(
-                                (sum, schema) =>
-                                    sum + groupedTables[schema].length,
-                                0,
-                            )}{" "}
-                            TABLES
-                        </span>
-                    </p>
+                            {selectedDatabase}
+                            <span
+                                className="ml-2"
+                                style={{ color: "var(--text-muted)" }}
+                            >
+                                {Object.keys(groupedTables).reduce(
+                                    (sum, schema) =>
+                                        sum + groupedTables[schema].length,
+                                    0,
+                                )}{" "}
+                                TABLES
+                            </span>
+                        </p>
+                    )}
+                </div>
+                {onRefresh && (
+                    <button
+                        onClick={onRefresh}
+                        disabled={loading}
+                        className="text-[14px] hover:opacity-80 transition-opacity disabled:opacity-30"
+                        style={{ color: "var(--accent)" }}
+                        title="Refresh schema"
+                    >
+                        ↻
+                    </button>
                 )}
             </div>
 

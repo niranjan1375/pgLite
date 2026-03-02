@@ -55,7 +55,12 @@ export async function POST(req: NextRequest) {
         // Create pool for this specific request
         pool = createPool(environment, database);
 
+        // Set query timeout to prevent runaway queries (30 seconds)
+        await pool.query("SET statement_timeout = 30000");
+
+        const start = Date.now();
         const result = await pool.query(query);
+        const executionTime = Date.now() - start;
 
         // Enforce row limit to prevent DoS and memory overflow
         if (result.rows.length > MAX_ROWS) {
@@ -74,6 +79,7 @@ export async function POST(req: NextRequest) {
             rowCount: result.rowCount ?? 0,
             fields: result.fields.map((f) => f.name),
             truncated: false,
+            executionTime,
         });
     } catch (err: unknown) {
         const message =

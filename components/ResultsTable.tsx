@@ -27,7 +27,7 @@ export default function ResultsTable({
 
     // Virtual scrolling constants
     const ROW_HEIGHT = 41; // Height of each row in pixels
-    const OVERSCAN = 5; // Extra rows to render above/below viewport
+    const OVERSCAN = 15; // Extra rows to render above/below viewport for smooth scrolling
 
     // Calculate visible rows based on scroll position
     const visibleRange = useMemo(() => {

@@ -9,6 +9,7 @@ import {
 } from "react";
 import { environments } from "@/lib/environments";
 import { getEnvironmentColor } from "@/lib/design-system";
+import { useKeyboard } from "@/hooks/useKeyboard";
 
 interface QueryTab {
     id: string;
@@ -58,6 +59,7 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
             readOnly: false,
         },
     ]);
+    console.log("🚀 ~ tabs:", tabs);
     const [activeTabId, setActiveTabId] = useState("1");
     const [nextTabId, setNextTabId] = useState(2);
     const lastNotifiedTabRef = useRef<{
@@ -68,6 +70,42 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
     } | null>(null);
 
     const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0];
+
+    // Keyboard shortcuts for tabs
+    useKeyboard([
+        {
+            key: "t",
+            ctrl: true,
+            description: "New tab",
+            handler: () => {
+                const newTab: QueryTab = {
+                    id: String(nextTabId),
+                    name: `Playground ${nextTabId}`,
+                    query: "",
+                    environment: globalEnvironment,
+                    database: globalDatabase,
+                    readOnly: false,
+                };
+                setTabs([...tabs, newTab]);
+                setActiveTabId(String(nextTabId));
+                setNextTabId(nextTabId + 1);
+            },
+        },
+        {
+            key: "w",
+            ctrl: true,
+            description: "Close tab",
+            handler: () => {
+                if (tabs.length > 1) {
+                    const newTabs = tabs.filter((t) => t.id !== activeTabId);
+                    setTabs(newTabs);
+                    if (newTabs.length > 0) {
+                        setActiveTabId(newTabs[0].id);
+                    }
+                }
+            },
+        },
+    ]);
 
     // Notify parent when active tab changes (but not when query changes)
     useEffect(() => {
@@ -225,7 +263,7 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
 
     return (
         <div
-            className="flex items-center gap-0 h-[36px] px-2"
+            className="flex items-center gap-2 h-[36px] px-2"
             style={{ background: "var(--panel)" }}
         >
             {/* Tabs */}
@@ -247,6 +285,8 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
                             borderBottomColor: isActive
                                 ? envColor
                                 : "transparent",
+                            padding: "4px",
+                            borderRight: "1px solid white",
                         }}
                         title="Double-click to rename"
                     >

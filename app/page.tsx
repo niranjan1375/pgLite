@@ -14,6 +14,7 @@ import ActivityBar from "@/components/ActivityBar";
 import StatusBar from "@/components/StatusBar";
 import EnvironmentStrip from "@/components/EnvironmentStrip";
 import KeyboardHelp from "@/components/KeyboardHelp";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import { type QueryTab, type QueryTabsRef } from "@/components/QueryTabs";
 import { getAllEnvironments } from "@/lib/environments";
 
@@ -55,6 +56,13 @@ export default function Home() {
     const [loading, setLoading] = useState(false);
     const [executionTime, setExecutionTime] = useState<number | undefined>();
     const [activeTab, setActiveTab] = useState<QueryTab | null>(null);
+    const [showProdWarning, setShowProdWarning] = useState(false);
+    const [pendingQuery, setPendingQuery] = useState<{
+        query: string;
+        environment: string;
+        database: string;
+        readOnly: boolean;
+    } | null>(null);
     const queryTabsRef = useRef<QueryTabsRef>(null);
 
     const [databasesByEnv, setDatabasesByEnv] = useState<
@@ -69,38 +77,66 @@ export default function Home() {
     const databasesCacheRef = useRef<Record<string, string[]>>({});
     const inFlightRequestsRef = useRef<Record<string, Promise<string[]>>>({});
 
-    // Fetch tables and columns when active tab's database or environment changes
-    useEffect(() => {
+    // Fetch tables and columns for the active tab
+    const fetchTablesAndColumns = useCallback(async () => {
         if (!activeTab || !activeTab.database) return;
 
-        const fetchTablesAndColumns = async () => {
-            setLoadingTables(true);
-            try {
-                const columnsRes = await fetch("/api/columns", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        database: activeTab.database,
-                        environment: activeTab.environment,
-                    }),
-                });
+        setLoadingTables(true);
+        try {
+            const columnsRes = await fetch("/api/columns", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    database: activeTab.database,
+                    environment: activeTab.environment,
+                }),
+            });
 
-                const columnsData = await columnsRes.json();
+            const columnsData = await columnsRes.json();
 
-                if (!columnsData.error) {
-                    setTableColumns(columnsData.tableColumns);
-                }
-            } catch (err) {
-                console.error("Failed to fetch tables/columns:", err);
-            } finally {
-                setLoadingTables(false);
+            if (!columnsData.error) {
+                setTableColumns(columnsData.tableColumns);
             }
-        };
+        } catch (err) {
+            console.error("Failed to fetch tables/columns:", err);
+        } finally {
+            setLoadingTables(false);
+        }
+    }, [activeTab]);
+
+    // Fetch tables and columns when active tab's database or environment changes
+    useEffect(() => {
         fetchTablesAndColumns();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeTab?.database, activeTab?.environment]);
 
-    const runQuery = useCallback(
+    // Helper to detect write queries
+    const isWriteQuery = useCallback((query: string): boolean => {
+        const upperQuery = query.trim().toUpperCase();
+        const writeKeywords = [
+            "INSERT",
+            "UPDATE",
+            "DELETE",
+            "DROP",
+            "CREATE",
+            "ALTER",
+            "TRUNCATE",
+            "REPLACE",
+            "MERGE",
+        ];
+        return writeKeywords.some((keyword) => upperQuery.startsWith(keyword));
+    }, []);
+
+    // Helper to check if environment is production
+    const isProdEnvironment = useCallback((environment: string): boolean => {
+        return (
+            environment.includes("uat") ||
+            environment.includes("prod") ||
+            environment.includes("staging")
+        );
+    }, []);
+
+    const executeQuery = useCallback(
         async (
             query: string,
             environment: string,
@@ -148,6 +184,32 @@ export default function Home() {
             }
         },
         [],
+    );
+
+    const runQuery = useCallback(
+        async (
+            query: string,
+            environment: string,
+            database: string,
+            readOnly: boolean,
+        ) => {
+            if (!query.trim()) return;
+
+            // Check if this is a write query in production
+            if (
+                !readOnly &&
+                isWriteQuery(query) &&
+                isProdEnvironment(environment)
+            ) {
+                setPendingQuery({ query, environment, database, readOnly });
+                setShowProdWarning(true);
+                return;
+            }
+
+            // Execute query immediately
+            await executeQuery(query, environment, database, readOnly);
+        },
+        [isWriteQuery, isProdEnvironment, executeQuery],
     );
 
     const handleTablePreview = useCallback(
@@ -290,6 +352,7 @@ export default function Home() {
                             selectedDatabase={activeTab?.database || ""}
                             tableColumns={tableColumns}
                             onTablePreview={handleTablePreview}
+                            onRefresh={fetchTablesAndColumns}
                             loading={loadingTables}
                         />
                     </aside>
@@ -442,6 +505,33 @@ export default function Home() {
 
             {/* Keyboard Help */}
             <KeyboardHelp />
+
+            {/* Production Write Warning */}
+            {showProdWarning && pendingQuery && (
+                <ConfirmDialog
+                    title="Production Write Warning"
+                    message={`You are about to execute a write query in ${pendingQuery.environment.toUpperCase()} environment on database "${pendingQuery.database}". This operation cannot be undone. Are you sure you want to proceed?`}
+                    confirmLabel="Execute"
+                    cancelLabel="Cancel"
+                    isDangerous={true}
+                    onConfirm={() => {
+                        if (pendingQuery) {
+                            executeQuery(
+                                pendingQuery.query,
+                                pendingQuery.environment,
+                                pendingQuery.database,
+                                pendingQuery.readOnly,
+                            );
+                        }
+                        setShowProdWarning(false);
+                        setPendingQuery(null);
+                    }}
+                    onCancel={() => {
+                        setShowProdWarning(false);
+                        setPendingQuery(null);
+                    }}
+                />
+            )}
         </div>
     );
 }

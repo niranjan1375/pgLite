@@ -81,3 +81,29 @@ export function getEnvironment(env: string): Environment | null {
 export function getAllEnvironments(): string[] {
     return Object.keys(environments);
 }
+
+/**
+ * Validates that required environment variables are set
+ * Call this on app startup to fail fast
+ */
+export function validateEnvironments(): { valid: boolean; errors: string[] } {
+    const errors: string[] = [];
+
+    Object.entries(environments).forEach(([envKey, env]) => {
+        if (!env.host) {
+            errors.push(`Missing ${envKey.toUpperCase()}_HOST`);
+        }
+        if (!env.user) {
+            errors.push(`Missing ${envKey.toUpperCase()}_USER`);
+        }
+        // Password can be empty for some environments (like local dev with trust auth)
+        if (!env.database) {
+            errors.push(`Missing ${envKey.toUpperCase()}_DB`);
+        }
+    });
+
+    return {
+        valid: errors.length === 0,
+        errors,
+    };
+}
