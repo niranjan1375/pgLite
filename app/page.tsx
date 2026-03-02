@@ -10,7 +10,12 @@ import {
 import dynamic from "next/dynamic";
 import DatabaseTree from "@/components/DatabaseTree";
 import ResultsTable from "@/components/ResultsTable";
+import ActivityBar from "@/components/ActivityBar";
+import StatusBar from "@/components/StatusBar";
+import EnvironmentStrip from "@/components/EnvironmentStrip";
+import KeyboardHelp from "@/components/KeyboardHelp";
 import { type QueryTab, type QueryTabsRef } from "@/components/QueryTabs";
+import { getAllEnvironments } from "@/lib/environments";
 
 const SQLEditor = dynamic(() => import("@/components/SQLEditor"), {
     ssr: false,
@@ -48,6 +53,7 @@ export default function Home() {
     const [result, setResult] = useState<QueryResult | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+    const [executionTime, setExecutionTime] = useState<number | undefined>();
     const [activeTab, setActiveTab] = useState<QueryTab | null>(null);
     const queryTabsRef = useRef<QueryTabsRef>(null);
 
@@ -106,6 +112,9 @@ export default function Home() {
             setLoading(true);
             setResult(null);
             setError(null);
+            setExecutionTime(undefined);
+
+            const startTime = performance.now();
 
             try {
                 const res = await fetch("/api/query", {
@@ -119,6 +128,10 @@ export default function Home() {
                     }),
                 });
                 const data: QueryResult | QueryError = await res.json();
+
+                const endTime = performance.now();
+                const execTime = Math.round(endTime - startTime);
+                setExecutionTime(execTime);
 
                 // Use startTransition for non-urgent UI updates (large datasets)
                 startTransition(() => {
@@ -220,6 +233,12 @@ export default function Home() {
                 }
                 return tab;
             });
+            // Clear previous query results when switching tabs/environments/databases
+            setResult(null);
+            setError(null);
+            setExecutionTime(undefined);
+            setLoading(false);
+
             // Fetch databases for this tab's environment if not already cached
             await fetchDatabasesForEnvironment(tab.environment);
         },
@@ -227,49 +246,127 @@ export default function Home() {
     );
 
     return (
-        <div className="flex flex-col h-screen bg-gray-950 text-gray-100">
-            {/* Query Tabs - Full Width */}
-            <div className="border-b border-gray-800 flex-shrink-0 bg-gray-900">
-                <QueryTabs
-                    ref={queryTabsRef}
-                    globalDatabase={activeTab?.database || ""}
-                    globalEnvironment={activeTab?.environment || "loadtest"}
-                    databases={
-                        activeTab
-                            ? databasesByEnv[activeTab.environment] || []
-                            : []
-                    }
-                    onTabChange={handleTabChange}
-                />
-            </div>
+        <div
+            className="flex h-screen"
+            style={{
+                background: "var(--bg)",
+                color: "var(--text-primary)",
+            }}
+        >
+            {/* Activity Bar - 40px left strip */}
+            <ActivityBar />
 
-            {/* Main content area: Sidebar + Editor + Results */}
-            <div className="flex flex-1 min-h-0 overflow-hidden">
-                {/* Sidebar - Schema Browser */}
-                <aside className="w-72 flex-shrink-0 bg-gray-900 border-r border-gray-800 flex flex-col">
-                    <DatabaseTree
-                        databases={[]}
-                        selectedDatabase={activeTab?.database || ""}
-                        tableColumns={tableColumns}
-                        onTablePreview={handleTablePreview}
-                        loading={loadingTables}
+            {/* Main Layout */}
+            <div className="flex-1 flex flex-col min-w-0">
+                {/* Query Tabs */}
+                <div
+                    className="border-b flex-shrink-0"
+                    style={{ borderColor: "var(--border)" }}
+                >
+                    <QueryTabs
+                        ref={queryTabsRef}
+                        globalDatabase={activeTab?.database || ""}
+                        globalEnvironment={activeTab?.environment || "loadtest"}
+                        databases={
+                            activeTab
+                                ? databasesByEnv[activeTab.environment] || []
+                                : []
+                        }
+                        onTabChange={handleTabChange}
                     />
-                </aside>
+                </div>
 
-                {/* Editor + Results area */}
-                <main className="flex-1 flex flex-col overflow-hidden">
-                    {/* SQL Editor */}
-                    <div className="h-80 border-b border-gray-800 flex-shrink-0 flex flex-col">
-                        <div className="flex-1 overflow-auto">
-                            {activeTab && (
-                                <SQLEditor
-                                    value={activeTab.query}
-                                    onChange={(val) => {
-                                        queryTabsRef.current?.updateQuery(
-                                            val || "",
-                                        );
-                                    }}
-                                    onRunQuery={() => {
+                {/* Content: Explorer | Editor + Results */}
+                <div className="flex flex-1 min-h-0">
+                    {/* Explorer Sidebar - 240px */}
+                    <aside
+                        className="w-[240px] flex-shrink-0 border-r flex flex-col"
+                        style={{
+                            background: "var(--panel)",
+                            borderColor: "var(--border)",
+                        }}
+                    >
+                        <DatabaseTree
+                            selectedDatabase={activeTab?.database || ""}
+                            tableColumns={tableColumns}
+                            onTablePreview={handleTablePreview}
+                            loading={loadingTables}
+                        />
+                    </aside>
+
+                    {/* Editor + Results */}
+                    <main className="flex-1 flex flex-col min-w-0">
+                        {/* Environment Strip */}
+                        {activeTab && (
+                            <EnvironmentStrip
+                                environment={activeTab.environment}
+                                database={activeTab.database}
+                                readOnly={activeTab.readOnly}
+                                availableEnvironments={getAllEnvironments()}
+                                availableDatabases={
+                                    databasesByEnv[activeTab.environment] || []
+                                }
+                                onEnvironmentChange={(env) => {
+                                    queryTabsRef.current?.updateTabEnvironment?.(
+                                        activeTab.id,
+                                        env,
+                                    );
+                                }}
+                                onDatabaseChange={(db) => {
+                                    queryTabsRef.current?.updateTabDatabase?.(
+                                        activeTab.id,
+                                        db,
+                                    );
+                                }}
+                                onReadOnlyToggle={() => {
+                                    queryTabsRef.current?.toggleTabReadOnly?.(
+                                        activeTab.id,
+                                    );
+                                }}
+                            />
+                        )}
+
+                        {/* SQL Editor - 280px height */}
+                        <div
+                            className="h-[280px] flex-shrink-0 flex flex-col border-b"
+                            style={{ borderColor: "var(--border)" }}
+                        >
+                            <div className="flex-1">
+                                {activeTab && (
+                                    <SQLEditor
+                                        value={activeTab.query}
+                                        onChange={(val) => {
+                                            queryTabsRef.current?.updateQuery(
+                                                val || "",
+                                            );
+                                        }}
+                                        onRunQuery={() => {
+                                            const currentTab =
+                                                queryTabsRef.current?.getActiveTab();
+                                            if (currentTab) {
+                                                runQuery(
+                                                    currentTab.query,
+                                                    currentTab.environment,
+                                                    currentTab.database,
+                                                    currentTab.readOnly,
+                                                );
+                                            }
+                                        }}
+                                        tableColumns={tableColumns}
+                                    />
+                                )}
+                            </div>
+
+                            {/* Run Button Strip */}
+                            <div
+                                className="h-[32px] flex items-center px-3 text-[12px] border-t"
+                                style={{
+                                    background: "var(--panel)",
+                                    borderColor: "var(--border)",
+                                }}
+                            >
+                                <button
+                                    onClick={() => {
                                         const currentTab =
                                             queryTabsRef.current?.getActiveTab();
                                         if (currentTab) {
@@ -281,97 +378,70 @@ export default function Home() {
                                             );
                                         }
                                     }}
-                                    tableColumns={tableColumns}
-                                />
-                            )}
-                        </div>
-                        <div className="flex items-center gap-2 p-2 border-t border-gray-800">
-                            <button
-                                onClick={() => {
-                                    const currentTab =
-                                        queryTabsRef.current?.getActiveTab();
-                                    if (currentTab) {
-                                        runQuery(
-                                            currentTab.query,
-                                            currentTab.environment,
-                                            currentTab.database,
-                                            currentTab.readOnly,
-                                        );
+                                    disabled={
+                                        loading || !activeTab?.query.trim()
                                     }
-                                }}
-                                disabled={loading || !activeTab?.query.trim()}
-                                className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700
-                                           disabled:cursor-not-allowed rounded text-sm font-medium
-                                           transition-colors"
-                            >
-                                {loading ? (
-                                    <span className="flex items-center gap-2">
-                                        <svg
-                                            className="animate-spin h-4 w-4"
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                        >
-                                            <circle
-                                                className="opacity-25"
-                                                cx="12"
-                                                cy="12"
-                                                r="10"
-                                                stroke="currentColor"
-                                                strokeWidth="4"
-                                            />
-                                            <path
-                                                className="opacity-75"
-                                                fill="currentColor"
-                                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                                            />
-                                        </svg>
-                                        Running...
-                                    </span>
-                                ) : (
-                                    "Run Query"
-                                )}
-                            </button>
-                            <div className="text-xs text-gray-500">
-                                Press{" "}
-                                <kbd className="px-1.5 py-0.5 bg-gray-800 border border-gray-700 rounded">
-                                    Cmd+Enter
-                                </kbd>{" "}
-                                to run
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Results Table */}
-                    <div className="flex-1 overflow-hidden flex flex-col">
-                        {result?.truncated && (
-                            <div className="bg-yellow-600 text-black px-4 py-2 text-sm font-medium flex items-center gap-2">
-                                <svg
-                                    className="w-5 h-5"
-                                    fill="currentColor"
-                                    viewBox="0 0 20 20"
+                                    className="hover:opacity-80 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
+                                    style={{
+                                        color: loading
+                                            ? "var(--text-muted)"
+                                            : "var(--accent)",
+                                    }}
                                 >
-                                    <path
-                                        fillRule="evenodd"
-                                        d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-                                        clipRule="evenodd"
-                                    />
-                                </svg>
-                                ⚠️ Results limited to{" "}
-                                {result.rowCount.toLocaleString()} rows. Refine
-                                your query with a WHERE clause or LIMIT for
-                                better performance.
+                                    {loading ? (
+                                        <span className="flex items-center gap-2">
+                                            <span className="inline-block w-2 h-2 border border-current border-t-transparent animate-spin" />
+                                            Executing
+                                            {executionTime !== undefined
+                                                ? `... ${(executionTime / 1000).toFixed(2)}s`
+                                                : "..."}
+                                        </span>
+                                    ) : (
+                                        "[ Run ⌘↵ ]"
+                                    )}
+                                </button>
                             </div>
-                        )}
-                        <div className="flex-1 overflow-hidden">
-                            <ResultsTable
-                                result={result}
-                                error={error}
-                                loading={loading}
-                            />
                         </div>
-                    </div>
-                </main>
+
+                        {/* Results */}
+                        <div className="flex-1 flex flex-col min-h-0">
+                            {result?.truncated && (
+                                <div
+                                    className="px-3 py-1.5 text-[11px] uppercase tracking-wide border-b flex items-center gap-2"
+                                    style={{
+                                        background: "#1a1100",
+                                        borderColor: "var(--warning)",
+                                        color: "var(--warning)",
+                                    }}
+                                >
+                                    ⚠ RESULTS TRUNCATED AT{" "}
+                                    {result.rowCount.toLocaleString()} ROWS
+                                </div>
+                            )}
+                            <div className="flex-1 min-h-0">
+                                <ResultsTable
+                                    result={result}
+                                    error={error}
+                                    loading={loading}
+                                />
+                            </div>
+                        </div>
+                    </main>
+                </div>
+
+                {/* Status Bar */}
+                <StatusBar
+                    environment={activeTab?.environment || "loadtest"}
+                    database={activeTab?.database || ""}
+                    readOnly={activeTab?.readOnly || false}
+                    rowCount={result?.rowCount}
+                    executionTime={executionTime}
+                    connected={true}
+                />
             </div>
+
+            {/* Keyboard Help */}
+            <KeyboardHelp />
         </div>
     );
 }

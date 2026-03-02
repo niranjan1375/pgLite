@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect } from "react";
+import EmptyState from "@/components/EmptyState";
 
 interface QueryResult {
     rows: Record<string, unknown>[];
@@ -126,28 +127,15 @@ export default function ResultsTable({
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center h-32 text-gray-500">
-                <div className="flex items-center gap-2">
-                    <svg
-                        className="animate-spin w-5 h-5"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                    >
-                        <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                        />
-                        <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        />
-                    </svg>
-                    <span className="text-sm">Executing query...</span>
+            <div
+                className="flex items-center justify-center h-32"
+                style={{ color: "var(--text-muted)" }}
+            >
+                <div className="flex items-center gap-2 text-[12px]">
+                    <span className="inline-block w-2 h-2 border border-current border-t-transparent animate-spin" />
+                    <span className="uppercase tracking-wide">
+                        Executing query...
+                    </span>
                 </div>
             </div>
         );
@@ -155,75 +143,44 @@ export default function ResultsTable({
 
     if (error) {
         return (
-            <div className="rounded-lg bg-red-950 border border-red-800 p-4 text-sm text-red-300 font-mono">
-                <div className="flex items-start gap-2">
-                    <svg
-                        className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                    >
-                        <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                        />
-                    </svg>
-                    <div>
-                        <p className="font-semibold text-red-400 mb-1">
-                            Query Error
-                        </p>
-                        {error}
-                    </div>
-                </div>
+            <div
+                className="px-4 py-3 text-[12px] border"
+                style={{
+                    background: "#1a0505",
+                    borderColor: "var(--error)",
+                    color: "var(--error)",
+                }}
+            >
+                <div className="uppercase tracking-wide mb-2">Query Error</div>
+                <div style={{ color: "var(--text-muted)" }}>{error}</div>
             </div>
         );
     }
 
     if (!result) {
         return (
-            <div className="flex flex-col items-center justify-center h-32 text-gray-600">
-                <svg
-                    className="w-12 h-12 mb-2 text-gray-700"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                >
-                    <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={1.5}
-                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                    />
-                </svg>
-                <p className="text-sm">Run a query to see results</p>
-            </div>
+            <EmptyState
+                icon="⚡"
+                title="No query executed"
+                description="Write a SQL query above and press ⌘+Enter to execute"
+            />
         );
     }
 
     if (result.fields.length === 0) {
         return (
-            <div className="rounded-lg bg-green-950 border border-green-800 p-4 text-sm text-green-300">
-                <div className="flex items-center gap-2">
-                    <svg
-                        className="w-5 h-5 text-green-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                    >
-                        <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M5 13l4 4L19 7"
-                        />
-                    </svg>
-                    <span>
-                        Query executed successfully.{" "}
-                        {result.rowCount > 0 &&
-                            `${result.rowCount} row(s) affected.`}
-                    </span>
+            <div
+                className="px-4 py-3 text-[12px] border"
+                style={{
+                    background: "#0a1a0a",
+                    borderColor: "var(--success)",
+                    color: "var(--success)",
+                }}
+            >
+                <div className="uppercase tracking-wide">
+                    Query executed successfully.{" "}
+                    {result.rowCount > 0 &&
+                        `${result.rowCount} row(s) affected.`}
                 </div>
             </div>
         );
@@ -231,59 +188,43 @@ export default function ResultsTable({
 
     return (
         <div className="flex flex-col h-full">
-            {/* Results Header */}
-            <div className="flex items-center justify-between px-4 py-2 border-b border-gray-800 bg-gray-900/50">
-                <div className="flex items-center gap-4">
-                    <span className="text-sm text-gray-400">
-                        {result.rowCount.toLocaleString()} row
-                        {result.rowCount !== 1 ? "s" : ""}
+            {/* Results Header - UPPERCASE META */}
+            <div
+                className="h-[32px] flex items-center justify-between px-3 text-[11px] uppercase tracking-wide border-b"
+                style={{
+                    background: "var(--panel)",
+                    borderColor: "var(--border)",
+                    color: "var(--text-muted)",
+                }}
+            >
+                <div className="flex items-center gap-3">
+                    <span>
+                        RESULTS ({result.rowCount.toLocaleString()} ROWS)
                     </span>
-                    <span className="text-xs text-gray-600">
-                        {result.fields.length} column
-                        {result.fields.length !== 1 ? "s" : ""}
-                    </span>
+                    <span>│</span>
+                    <span>{result.fields.length} COLS</span>
                 </div>
                 <div className="flex items-center gap-2">
                     <button
                         onClick={exportAsJSON}
-                        className="px-3 py-1 text-xs rounded bg-gray-800 hover:bg-gray-700
-                                   text-gray-300 flex items-center gap-1.5 transition-colors"
+                        className="px-2 py-0.5 hover:opacity-80 transition-opacity border text-[10px]"
+                        style={{
+                            borderColor: "var(--border)",
+                            color: "var(--text-muted)",
+                        }}
                         title="Export as JSON"
                     >
-                        <svg
-                            className="w-3.5 h-3.5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                            />
-                        </svg>
                         JSON
                     </button>
                     <button
                         onClick={exportAsCSV}
-                        className="px-3 py-1 text-xs rounded bg-gray-800 hover:bg-gray-700
-                                   text-gray-300 flex items-center gap-1.5 transition-colors"
+                        className="px-2 py-0.5 hover:opacity-80 transition-opacity border text-[10px]"
+                        style={{
+                            borderColor: "var(--border)",
+                            color: "var(--text-muted)",
+                        }}
                         title="Export as CSV"
                     >
-                        <svg
-                            className="w-3.5 h-3.5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                            />
-                        </svg>
                         CSV
                     </button>
                 </div>
@@ -294,22 +235,35 @@ export default function ResultsTable({
                 ref={scrollContainerRef}
                 onScroll={handleScroll}
                 className="flex-1 overflow-auto"
+                style={{ background: "var(--bg)" }}
             >
                 <div className="min-w-full">
                     {/* Header */}
-                    <div className="bg-gray-900 sticky top-0 z-10 flex border-b border-gray-800">
+                    <div
+                        className="sticky top-0 z-10 flex border-b"
+                        style={{
+                            background: "var(--panel)",
+                            borderColor: "var(--border)",
+                        }}
+                    >
                         {result.fields.map((field, idx) => (
                             <div
                                 key={field}
-                                className="px-4 py-2.5 text-left text-xs font-semibold
-                                           text-gray-400 uppercase tracking-wider
-                                           whitespace-nowrap flex-shrink-0"
+                                className="px-3 py-2 text-left text-[11px] uppercase tracking-wider whitespace-nowrap flex-shrink-0"
                                 style={{
+                                    color: "var(--text-muted)",
                                     width: idx === 0 ? "200px" : "180px",
                                     minWidth: idx === 0 ? "200px" : "180px",
+                                    borderRight:
+                                        idx === result.fields.length - 1
+                                            ? "transparent"
+                                            : "1px solid var(--grid-line)",
+                                    paddingRight: "10px",
                                 }}
                             >
-                                {field}
+                                <div className="flex items-center justify-between">
+                                    <span className="truncate">{field}</span>
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -329,10 +283,20 @@ export default function ResultsTable({
                                 return (
                                     <div
                                         key={rowIdx}
-                                        className="absolute w-full flex hover:bg-gray-900/50 transition-colors border-b border-gray-800/50"
+                                        className="absolute w-full flex transition-colors border-b"
                                         style={{
                                             top: `${rowIdx * ROW_HEIGHT}px`,
                                             height: `${ROW_HEIGHT}px`,
+                                            borderColor: "var(--grid-line)",
+                                            background: "var(--bg)",
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.background =
+                                                "var(--panel)";
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.background =
+                                                "var(--bg)";
                                         }}
                                     >
                                         {result.fields.map(
@@ -341,15 +305,18 @@ export default function ResultsTable({
                                                 const value = row[field];
                                                 const displayValue =
                                                     value === null
-                                                        ? "NULL"
+                                                        ? "␀"
                                                         : String(value);
 
                                                 return (
                                                     <div
                                                         key={field}
-                                                        className="px-4 py-2 text-gray-300 font-mono text-xs
-                                                               whitespace-nowrap group relative flex items-center flex-shrink-0"
+                                                        className="px-3 py-2 text-[12px] whitespace-nowrap group relative flex items-center flex-shrink-0"
                                                         style={{
+                                                            color:
+                                                                value === null
+                                                                    ? "var(--text-muted)"
+                                                                    : "var(--text-primary)",
                                                             width:
                                                                 fieldIdx === 0
                                                                     ? "200px"
@@ -361,61 +328,35 @@ export default function ResultsTable({
                                                         }}
                                                     >
                                                         <span
-                                                            className={`truncate flex-1 ${
+                                                            className="truncate flex-1"
+                                                            title={
                                                                 value === null
-                                                                    ? "text-gray-600 italic"
-                                                                    : ""
-                                                            }`}
-                                                            title={displayValue}
+                                                                    ? "NULL"
+                                                                    : displayValue
+                                                            }
                                                         >
                                                             {displayValue}
                                                         </span>
                                                         <button
                                                             onClick={() =>
                                                                 copyToClipboard(
-                                                                    displayValue,
+                                                                    value ===
+                                                                        null
+                                                                        ? "NULL"
+                                                                        : displayValue,
                                                                     cellId,
                                                                 )
                                                             }
-                                                            className="opacity-0 group-hover:opacity-100 p-1 rounded ml-2
-                                                                   hover:bg-gray-800 text-gray-500 hover:text-gray-300
-                                                                   transition-all flex-shrink-0"
+                                                            className="opacity-0 group-hover:opacity-100 p-1 ml-2 hover:opacity-60 transition-opacity flex-shrink-0 text-[10px]"
+                                                            style={{
+                                                                color: "var(--text-muted)",
+                                                            }}
                                                             title="Copy value"
                                                         >
                                                             {copiedCell ===
-                                                            cellId ? (
-                                                                <svg
-                                                                    className="w-3 h-3 text-green-400"
-                                                                    fill="none"
-                                                                    stroke="currentColor"
-                                                                    viewBox="0 0 24 24"
-                                                                >
-                                                                    <path
-                                                                        strokeLinecap="round"
-                                                                        strokeLinejoin="round"
-                                                                        strokeWidth={
-                                                                            2
-                                                                        }
-                                                                        d="M5 13l4 4L19 7"
-                                                                    />
-                                                                </svg>
-                                                            ) : (
-                                                                <svg
-                                                                    className="w-3 h-3"
-                                                                    fill="none"
-                                                                    stroke="currentColor"
-                                                                    viewBox="0 0 24 24"
-                                                                >
-                                                                    <path
-                                                                        strokeLinecap="round"
-                                                                        strokeLinejoin="round"
-                                                                        strokeWidth={
-                                                                            2
-                                                                        }
-                                                                        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                                                                    />
-                                                                </svg>
-                                                            )}
+                                                            cellId
+                                                                ? "✓"
+                                                                : "⎘"}
                                                         </button>
                                                     </div>
                                                 );

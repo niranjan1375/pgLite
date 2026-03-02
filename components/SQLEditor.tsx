@@ -163,13 +163,17 @@ export default function SQLEditor({
             onMount={handleEditorDidMount}
             options={{
                 minimap: { enabled: false },
-                fontSize: 13,
+                fontSize: 12,
+                fontFamily:
+                    "'SF Mono', 'Monaco', 'Inconsolata', 'Consolas', monospace",
                 lineNumbers: "on",
-                roundedSelection: true,
+                roundedSelection: false,
                 scrollBeyondLastLine: false,
                 automaticLayout: true,
                 tabSize: 2,
                 wordWrap: "on",
+                lineHeight: 18,
+                padding: { top: 8, bottom: 8 },
                 suggest: {
                     showKeywords: true,
                     showSnippets: true,

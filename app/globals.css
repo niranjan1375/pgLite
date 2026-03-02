@@ -1,26 +1,129 @@
 @import "tailwindcss";
 
+/**
+ * Brutal Hacker Minimal Design System
+ * No softness. Sharp edges. High contrast. Monospace everything.
+ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+    /* Base Colors */
+    --bg: #0b0f14;
+    --panel: #11161d;
+    --border: #1f2630;
+    --text-primary: #e6edf3;
+    --text-muted: #8b949e;
+
+    /* Accent */
+    --accent: #00ff41;
+    --accent-hover: #00cc34;
+
+    /* Environment Colors */
+    --env-dev: #00c853;
+    --env-staging: #ff9100;
+    --env-prod: #ff1744;
+
+    /* Status */
+    --error: #ff4444;
+    --warning: #ffaa00;
+    --success: #00ff41;
+
+    /* Grid */
+    --grid-line: #1a1f28;
+
+    /* Layout */
+    --activity-bar: 40px;
+    --status-bar: 26px;
+    --row-height: 32px;
+    --border-width: 1px;
+
+    /* Typography - Full Monospace */
+    --font-mono:
+        "SF Mono", "Monaco", "Inconsolata", "Fira Mono", "Droid Sans Mono",
+        "Source Code Pro", monospace;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: Arial, Helvetica, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.5;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Subtle scanline grid background */
+body::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 1px,
+        rgba(26, 31, 40, 0.3) 1px,
+        rgba(26, 31, 40, 0.3) 2px
+    );
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.15;
+}
+
+/* Sharp scrollbars */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border: none;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+}
+
+/* Remove all focus outlines, replace with sharp borders */
+*:focus {
+    outline: none;
+}
+
+*:focus-visible {
+    outline: 1px solid var(--accent);
+    outline-offset: -1px;
+}
+
+/* Sharp selection */
+::selection {
+    background: var(--accent);
+    color: var(--bg);
+}
+
+/* Monospace inputs */
+input,
+textarea,
+select,
+button {
+    font-family: var(--font-mono);
+    font-size: 13px;
+}
+
+/* No rounded corners anywhere */
+* {
+    border-radius: 0 !important;
 }

@@ -14,7 +14,6 @@ interface Table {
 }
 
 interface DatabaseTreeProps {
-    databases: string[];
     selectedDatabase: string;
     tableColumns: Record<string, Column[]>;
     onTablePreview: (table: Table) => void;
@@ -22,7 +21,6 @@ interface DatabaseTreeProps {
 }
 
 export default function DatabaseTree({
-    databases,
     selectedDatabase,
     tableColumns,
     onTablePreview,
@@ -52,46 +50,75 @@ export default function DatabaseTree({
     });
 
     return (
-        <div className="flex flex-col h-full">
+        <div
+            className="flex flex-col h-full"
+            style={{ background: "var(--bg)" }}
+        >
             {/* Schema Browser Header */}
-            <div className="p-3 border-b border-gray-800">
-                <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Schema Browser
+            <div
+                className="px-3 py-2 border-b"
+                style={{
+                    borderColor: "var(--border)",
+                    background: "var(--panel)",
+                }}
+            >
+                <h2
+                    className="text-[11px] uppercase tracking-wider"
+                    style={{ color: "var(--text-muted)" }}
+                >
+                    Schema
                 </h2>
                 {selectedDatabase && (
-                    <p className="text-xs text-gray-400 mt-1 font-mono">
+                    <p
+                        className="text-[11px] mt-1"
+                        style={{ color: "var(--text-secondary)" }}
+                    >
                         {selectedDatabase}
-                        <span className="text-gray-600 ml-2">
+                        <span
+                            className="ml-2"
+                            style={{ color: "var(--text-muted)" }}
+                        >
                             {Object.keys(groupedTables).reduce(
                                 (sum, schema) =>
                                     sum + groupedTables[schema].length,
                                 0,
                             )}{" "}
-                            tables
+                            TABLES
                         </span>
                     </p>
                 )}
             </div>
 
             {/* Tables Tree */}
-            <div className="flex-1 overflow-auto p-2">
+            <div className="flex-1 overflow-auto p-1">
                 {loading && (
-                    <p className="text-xs text-gray-600 px-2 py-1">
+                    <p
+                        className="text-[11px] px-2 py-1 uppercase tracking-wide"
+                        style={{ color: "var(--text-muted)" }}
+                    >
                         Loading...
                     </p>
                 )}
                 {!loading && Object.keys(groupedTables).length === 0 && (
-                    <p className="text-xs text-gray-600 italic px-2 py-1">
-                        No tables found
+                    <p
+                        className="text-[11px] px-2 py-1 uppercase tracking-wide"
+                        style={{ color: "var(--text-muted)" }}
+                    >
+                        No tables
                     </p>
                 )}
 
                 {Object.entries(groupedTables).map(([schema, tables]) => (
-                    <div key={schema} className="mb-3">
-                        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-2 py-1 mb-1">
-                            {schema === "public" ? "Tables" : schema}
+                    <div key={schema} className="mb-2">
+                        <div
+                            className="text-[10px] uppercase tracking-wider px-2 py-1"
+                            style={{ color: "var(--text-muted)" }}
+                        >
+                            {schema === "public"
+                                ? "TABLES"
+                                : schema.toUpperCase()}
                         </div>
-                        <div className="space-y-0.5">
+                        <div className="space-y-px">
                             {tables.map((table) => {
                                 const tableKey = `${table.schema}.${table.name}`;
                                 const isExpanded = expandedTables.has(tableKey);
@@ -99,75 +126,110 @@ export default function DatabaseTree({
 
                                 return (
                                     <div key={tableKey}>
-                                        <div className="flex items-center gap-1 group">
+                                        <div className="flex items-center group">
                                             <button
                                                 onClick={() =>
                                                     toggleTable(tableKey)
                                                 }
-                                                className="p-1 hover:bg-gray-800 rounded flex-shrink-0"
+                                                className="p-1 hover:opacity-70 transition-opacity flex-shrink-0"
+                                                style={{
+                                                    color: "var(--text-muted)",
+                                                }}
                                             >
-                                                <svg
-                                                    className={`w-3 h-3 text-gray-500 transition-transform ${
+                                                <span
+                                                    className={`text-[10px] transition-transform inline-block ${
                                                         isExpanded
                                                             ? "rotate-90"
                                                             : ""
                                                     }`}
-                                                    fill="none"
-                                                    stroke="currentColor"
-                                                    viewBox="0 0 24 24"
+                                                    style={{
+                                                        transformOrigin:
+                                                            "center",
+                                                    }}
                                                 >
-                                                    <path
-                                                        strokeLinecap="round"
-                                                        strokeLinejoin="round"
-                                                        strokeWidth={2}
-                                                        d="M9 5l7 7-7 7"
-                                                    />
-                                                </svg>
+                                                    ►
+                                                </span>
                                             </button>
                                             <button
                                                 onClick={() =>
                                                     onTablePreview(table)
                                                 }
-                                                className="flex-1 text-left px-2 py-1 rounded text-sm text-gray-300
-                                                   hover:bg-gray-800 hover:text-blue-400 transition-colors
+                                                className="flex-1 text-left px-2 py-1 text-[12px] transition-colors
                                                    flex items-center gap-2 min-w-0"
-                                                title="Click to preview data"
+                                                style={{
+                                                    color: "var(--text-primary)",
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                    e.currentTarget.style.background =
+                                                        "var(--panel)";
+                                                    e.currentTarget.style.color =
+                                                        "var(--accent)";
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    e.currentTarget.style.background =
+                                                        "transparent";
+                                                    e.currentTarget.style.color =
+                                                        "var(--text-primary)";
+                                                }}
+                                                title="Preview table data"
                                             >
-                                                <svg
-                                                    className="w-3.5 h-3.5 flex-shrink-0 text-gray-600"
-                                                    fill="none"
-                                                    stroke="currentColor"
-                                                    viewBox="0 0 24 24"
+                                                <span
+                                                    className="flex-shrink-0 text-[11px]"
+                                                    style={{
+                                                        color: "var(--text-muted)",
+                                                    }}
                                                 >
-                                                    <path
-                                                        strokeLinecap="round"
-                                                        strokeLinejoin="round"
-                                                        strokeWidth={2}
-                                                        d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
-                                                    />
-                                                </svg>
-                                                <span className="font-mono truncate">
+                                                    ▦
+                                                </span>
+                                                <span className="truncate">
                                                     {table.name}
                                                 </span>
-                                                <span className="text-[10px] text-gray-600 flex-shrink-0">
-                                                    ({columns.length})
+                                                <span
+                                                    className="text-[10px] flex-shrink-0"
+                                                    style={{
+                                                        color: "var(--text-muted)",
+                                                    }}
+                                                >
+                                                    {columns.length}
                                                 </span>
                                             </button>
                                         </div>
 
                                         {isExpanded && (
-                                            <div className="ml-8 mt-0.5 space-y-0.5 border-l border-gray-800 pl-2">
+                                            <div
+                                                className="ml-6 space-y-px border-l pl-2"
+                                                style={{
+                                                    borderColor:
+                                                        "var(--grid-line)",
+                                                }}
+                                            >
                                                 {columns.map((col) => (
                                                     <div
                                                         key={col.name}
-                                                        className="px-2 py-0.5 text-xs text-gray-400 font-mono
-                                                           hover:bg-gray-800/50 rounded flex items-center justify-between gap-2"
+                                                        className="px-2 py-0.5 text-[11px] transition-colors
+                                                           flex items-center justify-between gap-2"
+                                                        style={{
+                                                            color: "var(--text-secondary)",
+                                                        }}
+                                                        onMouseEnter={(e) => {
+                                                            e.currentTarget.style.background =
+                                                                "var(--panel)";
+                                                        }}
+                                                        onMouseLeave={(e) => {
+                                                            e.currentTarget.style.background =
+                                                                "transparent";
+                                                        }}
                                                         title={`${col.type}${col.nullable === "YES" ? " NULL" : " NOT NULL"}`}
                                                     >
                                                         <span className="truncate">
                                                             {col.name}
                                                         </span>
-                                                        <span className="text-[10px] text-gray-600 flex-shrink-0">
+                                                        <span
+                                                            className="text-[10px] flex-shrink-0"
+                                                            style={{
+                                                                color: "var(--text-muted)",
+                                                            }}
+                                                        >
                                                             {col.type}
                                                         </span>
                                                     </div>
