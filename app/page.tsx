@@ -1197,7 +1197,7 @@ export default function Home() {
 
                 {/* Status Bar */}
                 <StatusBar
-                    environment={activeTab?.environment || "loadtest"}
+                    environment={activeTab?.environment || ""}
                     database={activeTab?.database || ""}
                     readOnly={activeTab?.readOnly || false}
                     rowCount={result?.rowCount}

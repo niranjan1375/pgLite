@@ -21,12 +21,13 @@ export default function StatusBar({
     latency,
     connected,
 }: StatusBarProps) {
+    console.log("🚀 ~ environment:", environment);
     const envColor = getEnvironmentColor(environment);
     const isProd = environment.includes("uat") || environment.includes("prod");
 
     return (
         <div
-            className="h-[26px] flex items-center justify-between px-3 text-[11px] uppercase tracking-wide border-t"
+            className="h-[26px] flex items-center justify-between px-3 text-[11px]  tracking-wide border-t"
             style={{
                 background: isProd ? "#1a0d0d" : "var(--panel)",
                 borderColor: "var(--border)",
@@ -48,33 +49,29 @@ export default function StatusBar({
                         </span>
                     </>
                 )}
-            </div>
-
-            {/* Middle: Stats */}
-            {(rowCount !== undefined || executionTime !== undefined) && (
-                <div className="flex items-center gap-3">
-                    {rowCount !== undefined && (
-                        <>
-                            <span>Rows: {rowCount.toLocaleString()}</span>
-                            <span>│</span>
-                        </>
-                    )}
-                    {executionTime !== undefined && (
-                        <>
-                            <span>Time: {executionTime}ms</span>
-                        </>
-                    )}
-                    {latency !== undefined && (
-                        <>
-                            <span>│</span>
-                            <span>Latency: {latency}ms</span>
-                        </>
-                    )}
-                </div>
-            )}
-
-            {/* Right: Connection Status */}
-            <div className="flex items-center gap-2">
+                <span>│</span>
+                {(rowCount !== undefined || executionTime !== undefined) && (
+                    <div className="flex  gap-3">
+                        {rowCount !== undefined && (
+                            <>
+                                <span>Rows: {rowCount.toLocaleString()}</span>
+                                <span>│</span>
+                            </>
+                        )}
+                        {executionTime !== undefined && (
+                            <>
+                                <span>Time: {executionTime}ms</span>
+                            </>
+                        )}
+                        {latency !== undefined && (
+                            <>
+                                <span>│</span>
+                                <span>Latency: {latency}ms</span>
+                            </>
+                        )}
+                    </div>
+                )}
+                <span>│</span>
                 <div
                     className="w-1.5 h-1.5"
                     style={{
