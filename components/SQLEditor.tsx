@@ -47,6 +47,7 @@ interface SQLEditorProps {
     value: string;
     onChange: (value: string) => void;
     isExecuting?: boolean;
+    executionError?: boolean;
     onRunQuery: (
         query: string,
         context?: {
@@ -104,6 +105,7 @@ export default function SQLEditor({
     value,
     onChange,
     isExecuting = false,
+    executionError = false,
     onRunQuery,
     tableColumns,
     databases = [],
@@ -126,7 +128,9 @@ export default function SQLEditor({
     const previousExecutingRef = useRef(isExecuting);
     const lastTriggerAtRef = useRef(0);
     const activeRunLineRef = useRef<number | null>(null);
-    const runStateRef = useRef<"idle" | "running" | "success">("idle");
+    const runStateRef = useRef<"idle" | "running" | "success" | "failure">(
+        "idle",
+    );
     const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
         null,
     );
@@ -162,10 +166,11 @@ export default function SQLEditor({
         }
 
         if (wasExecuting && !isExecuting && activeRunLineRef.current !== null) {
-            runStateRef.current = "success";
+            // If parent passed an execution error flag, show failure, otherwise success
+            runStateRef.current = executionError ? "failure" : "success";
             refreshDecorationsRef.current?.();
         }
-    }, [isExecuting]);
+    }, [isExecuting, executionError]);
 
     const triggerRun = useCallback(
         (
@@ -344,18 +349,22 @@ export default function SQLEditor({
                     const isActiveRunLine =
                         activeRunLineRef.current === statement.startLine;
 
-                    const iconClass =
-                        isActiveRunLine && runStateRef.current === "success"
-                            ? "codicon-check"
-                            : "codicon-play";
+                    // Determine icon and state class based on runState
+                    let iconClass = "codicon-play";
+                    let stateClass = "";
 
-                    const stateClass = isActiveRunLine
-                        ? runStateRef.current === "running"
-                            ? " statement-run-glyph--running"
-                            : runStateRef.current === "success"
-                              ? " statement-run-glyph--success"
-                              : ""
-                        : "";
+                    if (isActiveRunLine) {
+                        if (runStateRef.current === "running") {
+                            iconClass = "codicon-play"; // CSS spins it
+                            stateClass = " statement-run-glyph--running";
+                        } else if (runStateRef.current === "success") {
+                            iconClass = "codicon-check";
+                            stateClass = " statement-run-glyph--success";
+                        } else if (runStateRef.current === "failure") {
+                            iconClass = "codicon-remove";
+                            stateClass = " statement-run-glyph--failure";
+                        }
+                    }
 
                     return {
                         range: new monaco.Range(
@@ -455,6 +464,11 @@ export default function SQLEditor({
                     monaco.editor.MouseTargetType.GUTTER_LINE_DECORATIONS ||
                 event.target.type ===
                     monaco.editor.MouseTargetType.GUTTER_LINE_NUMBERS;
+
+            // Prevent interaction while a statement is running
+            if (runStateRef.current === "running") {
+                return;
+            }
 
             if (!isGutterTarget || !isStatementGlyphClick(event)) {
                 return;

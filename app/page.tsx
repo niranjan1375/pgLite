@@ -905,6 +905,7 @@ export default function Home() {
                                             );
                                         }}
                                         isExecuting={loading}
+                                        executionError={Boolean(error)}
                                         onRunQuery={(
                                             queryToRun,
                                             executionContext,
