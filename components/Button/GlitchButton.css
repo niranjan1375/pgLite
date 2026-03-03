@@ -1,0 +1,179 @@
+.glitch-container .container {
+    display: flex;
+    flex-direction: row;
+}
+
+.glitch-container .radio-wrapper {
+    position: relative;
+    height: 38px;
+    width: auto;
+    margin: 3px;
+    cursor: pointer;
+}
+
+.glitch-container .btn {
+    --primary: #882eff;
+    --shadow-primary: #000000;
+    --color: black;
+    --font-size: 9px;
+    --shadow-primary-hue: 180;
+    --shadow-secondary-hue: 60;
+    --shadow-secondary: hsl(var(--shadow-secondary-hue), 90%, 60%);
+    --clip: polygon(
+        11% 0,
+        95% 0,
+        100% 25%,
+        90% 90%,
+        95% 90%,
+        85% 90%,
+        85% 100%,
+        7% 100%,
+        0 80%
+    );
+    --border: 5px;
+    --shimmy-distance: 5;
+    color: var(--color);
+    text-transform: uppercase;
+    font-size: var(--font-size);
+    letter-spacing: 3px;
+    position: relative;
+    font-weight: 900;
+    display: inline-block;
+    padding: 0 12px;
+    height: 38px;
+    line-height: 38px;
+    text-align: center;
+    transition:
+        background 0.2s,
+        font-size 0.3s;
+}
+
+.radio-wrapper:hover .btn {
+    --primary: #95ff00;
+    --font-size: 11px;
+}
+
+.radio-wrapper.is-selected .btn {
+    --primary: #882eff;
+    --shadow-primary: #000000;
+}
+
+.btn:after,
+.btn:before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    clip-path: var(--clip);
+    z-index: -1;
+}
+
+.btn:before {
+    background: var(--shadow-primary);
+    transform: translate(var(--border), 0);
+}
+
+.btn:after {
+    background: var(--primary);
+}
+
+.btn__glitch {
+    position: absolute;
+    top: calc(var(--border) * -1);
+    left: calc(var(--border) * -1);
+    right: calc(var(--border) * -1);
+    bottom: calc(var(--border) * -1);
+    background: var(--shadow-primary);
+    text-shadow:
+        2px 2px var(--shadow-primary),
+        -2px -2px var(--shadow-secondary);
+    clip-path: var(--clip);
+    animation: glitch 2s infinite;
+    display: none;
+}
+
+.radio-wrapper:hover .btn__glitch,
+.radio-wrapper.is-selected .btn__glitch {
+    display: block;
+}
+
+.radio-wrapper.is-disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.btn__glitch:before {
+    content: "";
+    position: absolute;
+    top: calc(var(--border) * 1);
+    right: calc(var(--border) * 1);
+    bottom: calc(var(--border) * 1);
+    left: calc(var(--border) * 1);
+    clip-path: var(--clip);
+    background: var(--primary);
+    z-index: -1;
+}
+
+@keyframes glitch {
+    0% {
+        clip-path: var(--clip);
+    }
+    2%,
+    8% {
+        transform: translate(calc(var(--shimmy-distance) * -1%), 0);
+    }
+    6% {
+        transform: translate(calc(var(--shimmy-distance) * 1%), 0);
+    }
+    9% {
+        transform: translate(0, 0);
+    }
+    10% {
+        transform: translate(calc(var(--shimmy-distance) * 1%), 0);
+    }
+    13% {
+        transform: translate(0, 0);
+    }
+    14%,
+    21% {
+        transform: translate(calc(var(--shimmy-distance) * 1%), 0);
+    }
+    25% {
+        transform: translate(calc(var(--shimmy-distance) * 1%), 0);
+    }
+    30% {
+        transform: translate(calc(var(--shimmy-distance) * -1%), 0);
+    }
+    35%,
+    45% {
+        transform: translate(calc(var(--shimmy-distance) * -1%));
+    }
+    40% {
+        transform: translate(calc(var(--shimmy-distance) * 1%));
+    }
+    50% {
+        transform: translate(0, 0);
+    }
+    55% {
+        transform: translate(calc(var(--shimmy-distance) * 1%), 0);
+    }
+    60% {
+        transform: translate(0, 0);
+    }
+}
+
+.number {
+    background: var(--shadow-primary);
+    color: #323232;
+    font-size: 5.5px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    position: absolute;
+    width: 15px;
+    height: 6px;
+    top: 0;
+    right: 6px;
+    line-height: 6.2px;
+}

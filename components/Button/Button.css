@@ -1,0 +1,111 @@
+.cyber-btn {
+    --primary: #882eff;
+    --shadow-primary: #000000;
+    --accent: #95ff00;
+    --font-size: 12px;
+    --padding-x: 10px;
+    --padding-y: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: var(--padding-y) var(--padding-x);
+    border-radius: 6px;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    background: var(--primary);
+    color: #fff;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition:
+        transform 0.12s ease,
+        box-shadow 0.12s ease,
+        background 0.12s ease;
+}
+
+.cyber-btn .cyber-btn__label {
+    position: relative;
+    z-index: 2;
+}
+
+.cyber-btn .cyber-btn__glitch {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    display: none;
+    z-index: 1;
+    mix-blend-mode: screen;
+    opacity: 0.25;
+}
+
+.cyber-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+}
+
+.cyber-btn.is-selected {
+    box-shadow: 0 0 0 2px rgba(136, 46, 255, 0.25) inset;
+}
+
+/* Variants */
+.cyber-btn.primary {
+    --primary: #2563eb;
+}
+.cyber-btn.default {
+    --primary: #444444;
+}
+
+/* Glitch effect show on hover/selected */
+.cyber-btn:hover .cyber-btn__glitch,
+.cyber-btn.is-selected .cyber-btn__glitch {
+    display: block;
+    animation: cyber-glitch 3s infinite;
+}
+
+@keyframes cyber-glitch {
+    0% {
+        transform: translateX(0);
+        clip-path: inset(0 0 0 0);
+    }
+    5% {
+        transform: translateX(-2px);
+    }
+    10% {
+        transform: translateX(2px);
+    }
+    15% {
+        transform: translateX(-1px);
+    }
+    20% {
+        transform: translateX(0);
+    }
+}
+
+/* Dark / Light theme support */
+:root {
+    --btn-bg: #222222;
+    --btn-foreground: #ffffff;
+}
+
+@media (prefers-color-scheme: light) {
+    :root {
+        --btn-bg: #f3f4f6;
+        --btn-foreground: #0f172a;
+    }
+}
+
+.cyber-btn.light {
+    background: var(--btn-bg);
+    color: var(--btn-foreground);
+    border-color: rgba(15, 23, 42, 0.08);
+}
+
+.cyber-btn.dark {
+    background: var(--primary);
+    color: #fff;
+}
