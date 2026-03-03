@@ -44,12 +44,16 @@ export default function KeyboardHelp() {
                         style={{
                             background: "var(--panel)",
                             borderColor: "var(--border)",
+                            padding: "20px",
                         }}
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div
                             className="px-4 py-3 border-b flex justify-between items-center"
-                            style={{ borderColor: "var(--border)" }}
+                            style={{
+                                borderColor: "var(--border)",
+                                paddingBottom: "10px",
+                            }}
                         >
                             <h2
                                 className="text-[12px] uppercase tracking-wider"
@@ -65,7 +69,10 @@ export default function KeyboardHelp() {
                                 ×
                             </button>
                         </div>
-                        <div className="p-4">
+                        <div
+                            className="p-4 gap-3 flex flex-col"
+                            style={{ marginTop: "12px" }}
+                        >
                             {shortcuts.map((shortcut, idx) => (
                                 <div
                                     key={idx}
@@ -89,6 +96,7 @@ export default function KeyboardHelp() {
                                                     borderColor:
                                                         "var(--border)",
                                                     color: "var(--accent)",
+                                                    padding: "2px 6px",
                                                 }}
                                             >
                                                 {key}
