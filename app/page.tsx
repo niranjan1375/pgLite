@@ -1013,7 +1013,47 @@ export default function Home() {
                                     borderColor: "var(--border)",
                                 }}
                             >
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-3">
+                                    {activeTab?.mode === "workspace" && (
+                                        <button
+                                            onClick={handleSaveTemplate}
+                                            className="px-2 py-0.5 hover:opacity-80 transition-opacity border rounded text-[10px]"
+                                            style={{
+                                                color: "var(--accent)",
+                                                borderColor: "var(--accent)",
+                                                padding: "4px",
+                                                fontSize: "12px",
+                                            }}
+                                            title="Save or overwrite template"
+                                        >
+                                            Save template
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        onClick={() =>
+                                            fetchTablesAndColumns(true)
+                                        }
+                                        disabled={loadingTables}
+                                        className="px-2 py-0.5 hover:opacity-80 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed border rounded text-[10px]"
+                                        style={{
+                                            color: "var(--text-muted)",
+                                            borderColor: "var(--border)",
+                                        }}
+                                        title="Refresh autocomplete/intellisense data"
+                                    >
+                                        {loadingTables ? (
+                                            <span className="flex items-center gap-1">
+                                                <span className="inline-block w-2 h-2 border border-current border-t-transparent animate-spin rounded-full" />
+                                                Refreshing
+                                            </span>
+                                        ) : (
+                                            "⟳ Intellisense"
+                                        )}
+                                    </button>
+
                                     <button
                                         onClick={() => {
                                             const currentTab =
@@ -1097,39 +1137,7 @@ export default function Home() {
                                             "[ Run ⌘↵ ]"
                                         )}
                                     </button>
-                                    {activeTab?.mode === "workspace" && (
-                                        <button
-                                            onClick={handleSaveTemplate}
-                                            className="px-2 py-0.5 hover:opacity-80 transition-opacity border rounded text-[10px]"
-                                            style={{
-                                                color: "var(--accent)",
-                                                borderColor: "var(--accent)",
-                                            }}
-                                            title="Save or overwrite template"
-                                        >
-                                            SAVE TEMPLATE
-                                        </button>
-                                    )}
                                 </div>
-                                <button
-                                    onClick={() => fetchTablesAndColumns(true)}
-                                    disabled={loadingTables}
-                                    className="px-2 py-0.5 hover:opacity-80 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed border rounded text-[10px]"
-                                    style={{
-                                        color: "var(--text-muted)",
-                                        borderColor: "var(--border)",
-                                    }}
-                                    title="Refresh autocomplete/intellisense data"
-                                >
-                                    {loadingTables ? (
-                                        <span className="flex items-center gap-1">
-                                            <span className="inline-block w-2 h-2 border border-current border-t-transparent animate-spin rounded-full" />
-                                            REFRESHING
-                                        </span>
-                                    ) : (
-                                        "⟳ INTELLISENSE"
-                                    )}
-                                </button>
                             </div>
                         </div>
 
