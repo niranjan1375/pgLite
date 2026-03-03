@@ -18,6 +18,9 @@ interface ResultsTableProps {
     result: QueryResult | null;
     error: string | null;
     loading: boolean;
+    readOnly?: boolean;
+    tableName?: string;
+    onDeleteRow?: (row: Record<string, unknown>) => void;
 }
 
 interface ColumnWidth {
@@ -35,6 +38,8 @@ export default function ResultsTable({
     result,
     error,
     loading,
+    readOnly = true,
+    onDeleteRow,
 }: ResultsTableProps) {
     const [copiedCell, setCopiedCell] = useState<string | null>(null);
     const [scrollTop, setScrollTop] = useState(0);
@@ -497,6 +502,18 @@ export default function ResultsTable({
                             borderColor: "var(--border)",
                         }}
                     >
+                        {/* Row Actions Header */}
+                        <div
+                            className="px-3 py-2 text-left text-[11px] uppercase tracking-wider whitespace-nowrap flex-shrink-0"
+                            style={{
+                                color: "var(--text-muted)",
+                                width: readOnly ? "80px" : "140px",
+                                minWidth: readOnly ? "80px" : "140px",
+                                borderRight: "1px solid var(--grid-line)",
+                            }}
+                        >
+                            Actions
+                        </div>
                         {visibleFields.map((field, idx) => (
                             <div
                                 key={field}
@@ -582,6 +599,54 @@ export default function ResultsTable({
                                                 "var(--bg)";
                                         }}
                                     >
+                                        {/* Row Actions Cell */}
+                                        <div
+                                            className="px-2 py-2 flex items-center gap-1 justify-center flex-shrink-0"
+                                            style={{
+                                                width: readOnly
+                                                    ? "80px"
+                                                    : "140px",
+                                                minWidth: readOnly
+                                                    ? "80px"
+                                                    : "140px",
+                                                borderRight:
+                                                    "1px solid var(--grid-line)",
+                                            }}
+                                        >
+                                            <button
+                                                onClick={() =>
+                                                    copyRowAsJSON(row)
+                                                }
+                                                className="px-2 py-1 rounded border hover:opacity-80 transition-opacity text-[11px] font-medium"
+                                                style={{
+                                                    color: "var(--text-secondary)",
+                                                    borderColor:
+                                                        "var(--border)",
+                                                    background: "var(--panel)",
+                                                }}
+                                                title="Copy entire row as JSON"
+                                            >
+                                                copy
+                                            </button>
+                                            {!readOnly && onDeleteRow && (
+                                                <button
+                                                    onClick={() =>
+                                                        onDeleteRow(row)
+                                                    }
+                                                    className="px-2 py-1 rounded border hover:opacity-80 transition-opacity text-[11px] font-medium"
+                                                    style={{
+                                                        color: "var(--warning)",
+                                                        borderColor:
+                                                            "var(--warning)",
+                                                        background:
+                                                            "var(--panel)",
+                                                    }}
+                                                    title="Delete this row"
+                                                >
+                                                    delete
+                                                </button>
+                                            )}
+                                        </div>
                                         {visibleFields.map((field) => {
                                             const cellId = `${rowIdx}-${field}`;
                                             const value = row[field];
@@ -631,35 +696,27 @@ export default function ResultsTable({
                                                                     cellId,
                                                                 )
                                                             }
-                                                            className="p-1 hover:opacity-60 transition-opacity text-[10px]"
+                                                            className="px-2 py-1 rounded border hover:opacity-80 transition-opacity text-[12px] font-medium leading-none"
                                                             style={{
-                                                                color: "var(--text-muted)",
+                                                                color: "var(--text-secondary)",
+                                                                borderColor:
+                                                                    "var(--border)",
+                                                                background:
+                                                                    "var(--panel)",
                                                             }}
                                                             title="Copy cell"
                                                         >
                                                             {copiedCell ===
-                                                            cellId
-                                                                ? "✓"
-                                                                : "⎘"}
+                                                            cellId ? (
+                                                                "copied"
+                                                            ) : (
+                                                                <>copy</>
+                                                            )}
                                                         </button>
                                                     </div>
                                                 </div>
                                             );
                                         })}
-
-                                        {/* Copy Row Button */}
-                                        <button
-                                            onClick={() => copyRowAsJSON(row)}
-                                            className="absolute right-2 opacity-0 group-hover/row:opacity-100 px-2 py-1 hover:opacity-60 transition-opacity text-[10px] border"
-                                            style={{
-                                                color: "var(--text-muted)",
-                                                borderColor: "var(--border)",
-                                                background: "var(--panel)",
-                                            }}
-                                            title="Copy entire row as JSON"
-                                        >
-                                            JSON
-                                        </button>
                                     </div>
                                 );
                             })}
@@ -699,10 +756,10 @@ export default function ResultsTable({
                                                 : String(expandedCell.value);
                                         copyToClipboard(value, "expanded-cell");
                                     }}
-                                    className="px-3 py-1 text-[11px] uppercase border hover:opacity-70 transition-opacity"
+                                    className="px-3 py-1.5 text-[11px] uppercase border rounded hover:opacity-80 transition-opacity font-medium"
                                     style={{
                                         borderColor: "var(--border)",
-                                        color: "var(--text-muted)",
+                                        color: "var(--text-secondary)",
                                     }}
                                 >
                                     {copiedCell === "expanded-cell"

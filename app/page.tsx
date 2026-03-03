@@ -5,6 +5,7 @@ import {
     useCallback,
     useEffect,
     useRef,
+    useMemo,
     startTransition,
 } from "react";
 import dynamic from "next/dynamic";
@@ -43,6 +44,7 @@ interface QueryError {
 interface Table {
     schema: string;
     name: string;
+    database?: string;
 }
 
 interface Column {
@@ -50,6 +52,19 @@ interface Column {
     type: string;
     nullable: string;
 }
+
+interface WorkspaceSchema {
+    database: string;
+    schemas: {
+        schema: string;
+        tables: {
+            name: string;
+            columns: Column[];
+        }[];
+    }[];
+}
+
+const WORKSPACE_SCHEMA_CACHE_TTL_MS = 120_000;
 
 export default function Home() {
     const [result, setResult] = useState<QueryResult | null>(null);
@@ -74,37 +89,208 @@ export default function Home() {
         {},
     );
     const [loadingTables, setLoadingTables] = useState(false);
+    const [workspaceSchemas, setWorkspaceSchemas] = useState<WorkspaceSchema[]>(
+        [],
+    );
+    const [editorHeight, setEditorHeight] = useState<number>(() => {
+        if (typeof window !== "undefined") {
+            const saved = localStorage.getItem("editorHeight");
+            return saved ? parseInt(saved, 10) : 280;
+        }
+        return 280;
+    });
+    const [currentTable, setCurrentTable] = useState<{
+        name: string;
+        schema: string;
+        database: string;
+    } | null>(null);
+    const [deleteConfirm, setDeleteConfirm] = useState<{
+        row: Record<string, unknown>;
+        query: string;
+    } | null>(null);
 
     // Use refs to track in-flight requests and cache
     const databasesCacheRef = useRef<Record<string, string[]>>({});
+    const isResizingRef = useRef(false);
+    const resizeStartYRef = useRef(0);
+    const resizeStartHeightRef = useRef(0);
     const inFlightRequestsRef = useRef<Record<string, Promise<string[]>>>({});
+    const workspaceSchemasCacheRef = useRef<
+        Partial<Record<string, { data: WorkspaceSchema[]; fetchedAt: number }>>
+    >({});
+    const workspaceSchemasInFlightRef = useRef<
+        Partial<Record<string, Promise<WorkspaceSchema[]>>>
+    >({});
+
+    // Convert workspaceSchemas to tableColumns format for autocomplete
+    const editorTableColumns = useMemo(() => {
+        if (activeTab?.mode === "workspace" && workspaceSchemas.length > 0) {
+            const columns: Record<string, Column[]> = {};
+            workspaceSchemas.forEach((dbSchema) => {
+                dbSchema.schemas.forEach((schema) => {
+                    schema.tables.forEach((table) => {
+                        const key = `${dbSchema.database}.${schema.schema}.${table.name}`;
+                        columns[key] = table.columns;
+                    });
+                });
+            });
+            return columns;
+        }
+        return tableColumns;
+    }, [activeTab?.mode, workspaceSchemas, tableColumns]);
+
+    // Handle resize divider
+    const handleResizeStart = useCallback(
+        (e: React.MouseEvent) => {
+            e.preventDefault();
+            isResizingRef.current = true;
+            resizeStartYRef.current = e.clientY;
+            resizeStartHeightRef.current = editorHeight;
+            document.body.style.cursor = "row-resize";
+            document.body.style.userSelect = "none";
+        },
+        [editorHeight],
+    );
+
+    useEffect(() => {
+        const handleResizeMove = (e: MouseEvent) => {
+            if (!isResizingRef.current) return;
+            const delta = e.clientY - resizeStartYRef.current;
+            
+            // Calculate available space (viewport - fixed UI elements)
+            const viewportHeight = window.innerHeight;
+            const minResultsHeight = 200; // Minimum space for results table
+            const fixedUIHeight = 150; // Tabs, status bar, etc.
+            const maxEditorHeight = viewportHeight - minResultsHeight - fixedUIHeight;
+            
+            const newHeight = Math.min(
+                Math.max(
+                    resizeStartHeightRef.current + delta,
+                    150 // Min 150px for editor
+                ),
+                maxEditorHeight // Don't exceed viewport
+            );
+            setEditorHeight(newHeight);
+        };
+
+        const handleResizeEnd = () => {
+            if (isResizingRef.current) {
+                isResizingRef.current = false;
+                document.body.style.cursor = "";
+                document.body.style.userSelect = "";
+                localStorage.setItem("editorHeight", editorHeight.toString());
+            }
+        };
+
+        document.addEventListener("mousemove", handleResizeMove);
+        document.addEventListener("mouseup", handleResizeEnd);
+
+        return () => {
+            document.removeEventListener("mousemove", handleResizeMove);
+            document.removeEventListener("mouseup", handleResizeEnd);
+        };
+    }, [editorHeight]);
 
     // Fetch tables and columns for the active tab
-    const fetchTablesAndColumns = useCallback(async () => {
-        if (!activeTab || !activeTab.database) return;
+    const fetchTablesAndColumns = useCallback(
+        async (forceRefresh = false) => {
+            if (!activeTab) return;
 
-        setLoadingTables(true);
-        try {
-            const columnsRes = await fetch("/api/columns", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    database: activeTab.database,
-                    environment: activeTab.environment,
-                }),
-            });
+            // Workspace mode: fetch all database schemas
+            if (activeTab.mode === "workspace") {
+                const environment = activeTab.environment;
+                const cached = workspaceSchemasCacheRef.current[environment];
+                const isFresh =
+                    cached &&
+                    Date.now() - cached.fetchedAt <
+                        WORKSPACE_SCHEMA_CACHE_TTL_MS;
 
-            const columnsData = await columnsRes.json();
+                if (!forceRefresh && isFresh) {
+                    setWorkspaceSchemas(cached.data);
+                    return;
+                }
 
-            if (!columnsData.error) {
-                setTableColumns(columnsData.tableColumns);
+                if (
+                    !forceRefresh &&
+                    workspaceSchemasInFlightRef.current[environment]
+                ) {
+                    setLoadingTables(true);
+                    try {
+                        const schemas =
+                            await workspaceSchemasInFlightRef.current[
+                                environment
+                            ];
+                        setWorkspaceSchemas(schemas);
+                    } catch (err) {
+                        console.error(
+                            "Failed to fetch workspace schemas:",
+                            err,
+                        );
+                    } finally {
+                        setLoadingTables(false);
+                    }
+                    return;
+                }
+
+                setLoadingTables(true);
+                try {
+                    const requestPromise = (async () => {
+                        const res = await fetch(
+                            `/api/workspace-schemas?environment=${environment}${forceRefresh ? "&refresh=1" : ""}`,
+                        );
+                        const data = await res.json();
+                        if (data.error) {
+                            throw new Error(data.error);
+                        }
+                        const schemas = (data.schemas ||
+                            []) as WorkspaceSchema[];
+                        workspaceSchemasCacheRef.current[environment] = {
+                            data: schemas,
+                            fetchedAt: Date.now(),
+                        };
+                        return schemas;
+                    })();
+
+                    workspaceSchemasInFlightRef.current[environment] =
+                        requestPromise;
+                    const schemas = await requestPromise;
+                    setWorkspaceSchemas(schemas);
+                } catch (err) {
+                    console.error("Failed to fetch workspace schemas:", err);
+                } finally {
+                    delete workspaceSchemasInFlightRef.current[environment];
+                    setLoadingTables(false);
+                }
+                return;
             }
-        } catch (err) {
-            console.error("Failed to fetch tables/columns:", err);
-        } finally {
-            setLoadingTables(false);
-        }
-    }, [activeTab]);
+
+            // Standard mode: fetch single database schema
+            if (!activeTab.database) return;
+
+            setLoadingTables(true);
+            try {
+                const columnsRes = await fetch("/api/columns", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        database: activeTab.database,
+                        environment: activeTab.environment,
+                    }),
+                });
+
+                const columnsData = await columnsRes.json();
+
+                if (!columnsData.error) {
+                    setTableColumns(columnsData.tableColumns);
+                }
+            } catch (err) {
+                console.error("Failed to fetch tables/columns:", err);
+            } finally {
+                setLoadingTables(false);
+            }
+        },
+        [activeTab],
+    );
 
     // Fetch tables and columns when active tab's database or environment changes
     useEffect(() => {
@@ -256,16 +442,101 @@ export default function Home() {
                 table.schema === "public"
                     ? table.name
                     : `${table.schema}.${table.name}`;
-            // Use active tab's environment and database for table preview
+
+            const targetDatabase = table.database || currentTab.database;
+            const mode = table.database ? "workspace" : "standard";
+            if (!targetDatabase) return;
+
+            // Track current table for delete functionality
+            setCurrentTable({
+                name: table.name,
+                schema: table.schema,
+                database: targetDatabase,
+            });
+
+            // Enable write mode for table preview (to allow delete)
+            if (currentTab.readOnly) {
+                queryTabsRef.current?.toggleTabReadOnly?.(currentTab.id);
+            }
+
             runQuery(
                 `SELECT * FROM ${fullTableName} LIMIT 100;`,
                 currentTab.environment,
-                currentTab.database,
+                targetDatabase,
                 false, // table preview is always in write mode
+                mode,
             );
         },
         [runQuery],
     );
+
+    // Handle delete row
+    const handleDeleteRow = useCallback(
+        async (row: Record<string, unknown>) => {
+            if (!currentTable) return;
+
+            // Build WHERE clause using all columns to uniquely identify the row
+            const whereClauses = Object.entries(row)
+                .map(([key, value]) => {
+                    if (value === null) {
+                        return `${key} IS NULL`;
+                    }
+                    if (typeof value === "string") {
+                        return `${key} = '${value.replace(/'/g, "''")}'`; // Escape single quotes
+                    }
+                    return `${key} = ${value}`;
+                })
+                .join(" AND ");
+
+            const fullTableName =
+                currentTable.schema === "public"
+                    ? currentTable.name
+                    : `${currentTable.schema}.${currentTable.name}`;
+
+            const deleteQuery = `DELETE FROM ${fullTableName} WHERE ${whereClauses};`;
+
+            // Show confirmation dialog
+            setDeleteConfirm({ row, query: deleteQuery });
+        },
+        [currentTable],
+    );
+
+    // Execute delete after confirmation
+    const executeDelete = useCallback(async () => {
+        if (!deleteConfirm || !currentTable) return;
+
+        const currentTab = queryTabsRef.current?.getActiveTab();
+        if (!currentTab) return;
+
+        // Execute delete query
+        await runQuery(
+            deleteConfirm.query,
+            currentTab.environment,
+            currentTable.database,
+            false,
+            currentTable.database !== currentTab.database
+                ? "workspace"
+                : "standard",
+        );
+
+        // Refresh table data after delete
+        const fullTableName =
+            currentTable.schema === "public"
+                ? currentTable.name
+                : `${currentTable.schema}.${currentTable.name}`;
+
+        runQuery(
+            `SELECT * FROM ${fullTableName} LIMIT 100;`,
+            currentTab.environment,
+            currentTable.database,
+            false,
+            currentTable.database !== currentTab.database
+                ? "workspace"
+                : "standard",
+        );
+
+        setDeleteConfirm(null);
+    }, [deleteConfirm, currentTable, runQuery]);
 
     // Fetch databases for a specific environment
     const fetchDatabasesForEnvironment = useCallback(
@@ -387,8 +658,10 @@ export default function Home() {
                             selectedDatabase={activeTab?.database || ""}
                             tableColumns={tableColumns}
                             onTablePreview={handleTablePreview}
-                            onRefresh={fetchTablesAndColumns}
+                            onRefresh={() => fetchTablesAndColumns(true)}
                             loading={loadingTables}
+                            workspaceMode={activeTab?.mode === "workspace"}
+                            workspaceSchemas={workspaceSchemas}
                         />
                     </aside>
 
@@ -424,12 +697,12 @@ export default function Home() {
                             />
                         )}
 
-                        {/* SQL Editor - 280px height */}
+                        {/* SQL Editor - Resizable */}
                         <div
-                            className="h-[280px] flex-shrink-0 flex flex-col border-b"
-                            style={{ borderColor: "var(--border)" }}
+                            className="flex-shrink-0 flex flex-col"
+                            style={{ height: `${editorHeight}px` }}
                         >
-                            <div className="flex-1">
+                            <div className="flex-1 min-h-0 overflow-hidden">
                                 {activeTab && (
                                     <SQLEditor
                                         value={activeTab.query}
@@ -452,7 +725,7 @@ export default function Home() {
                                                 );
                                             }
                                         }}
-                                        tableColumns={tableColumns}
+                                        tableColumns={editorTableColumns}
                                         databases={
                                             databasesByEnv[
                                                 activeTab.environment
@@ -464,7 +737,7 @@ export default function Home() {
 
                             {/* Run Button Strip */}
                             <div
-                                className="h-[32px] flex items-center px-3 text-[12px] border-t"
+                                className="h-[32px] flex items-center justify-between px-3 text-[12px] border-t"
                                 style={{
                                     background: "var(--panel)",
                                     borderColor: "var(--border)",
@@ -506,21 +779,55 @@ export default function Home() {
                                         "[ Run ⌘↵ ]"
                                     )}
                                 </button>
+                                <button
+                                    onClick={() => fetchTablesAndColumns(true)}
+                                    disabled={loadingTables}
+                                    className="px-2 py-0.5 hover:opacity-80 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed border rounded text-[10px]"
+                                    style={{
+                                        color: "var(--text-muted)",
+                                        borderColor: "var(--border)",
+                                    }}
+                                    title="Refresh autocomplete/intellisense data"
+                                >
+                                    {loadingTables ? (
+                                        <span className="flex items-center gap-1">
+                                            <span className="inline-block w-2 h-2 border border-current border-t-transparent animate-spin rounded-full" />
+                                            REFRESHING
+                                        </span>
+                                    ) : (
+                                        "⟳ INTELLISENSE"
+                                    )}
+                                </button>
                             </div>
                         </div>
+
+                        {/* Resize Handle */}
+                        <div
+                            className="h-[4px] flex-shrink-0 cursor-row-resize hover:bg-blue-500/50 active:bg-blue-500 transition-colors border-b"
+                            style={{ 
+                                borderColor: "var(--border)",
+                                background: "var(--border)"
+                            }}
+                            onMouseDown={handleResizeStart}
+                            title="Drag to resize editor"
+                        />
 
                         {/* Results */}
                         <div className="flex-1 flex flex-col min-h-0">
                             {result?.routedDatabase && (
                                 <div
-                                    className="px-3 py-1.5 text-[11px] uppercase tracking-wide border-b flex items-center gap-2"
+                                    className="px-3 py-2 text-[11px] font-medium uppercase tracking-wide border-b flex items-center gap-2"
                                     style={{
-                                        background: "rgba(59, 130, 246, 0.1)",
-                                        borderColor: "var(--accent)",
+                                        background: "rgba(59, 130, 246, 0.08)",
+                                        borderColor: "rgba(59, 130, 246, 0.3)",
                                         color: "var(--accent)",
                                     }}
                                 >
-                                    🎯 AUTO DB: {result.routedDatabase}
+                                    <span>🎯</span>
+                                    <span>AUTO-ROUTED TO:</span>
+                                    <span style={{ fontWeight: 600 }}>
+                                        {result.routedDatabase}
+                                    </span>
                                 </div>
                             )}
                             {result?.truncated && (
@@ -541,6 +848,15 @@ export default function Home() {
                                     result={result}
                                     error={error}
                                     loading={loading}
+                                    readOnly={activeTab?.readOnly ?? true}
+                                    tableName={
+                                        currentTable
+                                            ? currentTable.schema === "public"
+                                                ? currentTable.name
+                                                : `${currentTable.schema}.${currentTable.name}`
+                                            : undefined
+                                    }
+                                    onDeleteRow={handleDeleteRow}
                                 />
                             </div>
                         </div>
@@ -586,6 +902,19 @@ export default function Home() {
                         setShowProdWarning(false);
                         setPendingQuery(null);
                     }}
+                />
+            )}
+
+            {/* Delete Row Confirmation */}
+            {deleteConfirm && (
+                <ConfirmDialog
+                    title="Delete Row"
+                    message={`Are you sure you want to delete this row? This operation cannot be undone.\n\n${deleteConfirm.query}`}
+                    confirmLabel="Delete"
+                    cancelLabel="Cancel"
+                    isDangerous={true}
+                    onConfirm={executeDelete}
+                    onCancel={() => setDeleteConfirm(null)}
                 />
             )}
         </div>

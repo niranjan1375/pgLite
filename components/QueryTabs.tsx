@@ -318,7 +318,7 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
     const addWorkspaceTab = () => {
         const newTab: QueryTab = {
             id: String(nextTabId),
-            name: `🎯 Workspace ${nextTabId}`,
+            name: `Workspace ${nextTabId}`,
             query: "-- Workspace Mode: Use db_name.table_name syntax\n-- Example: SELECT * FROM my_db.users;\n\n",
             environment: globalEnvironment,
             database: "", // Not needed in workspace mode
@@ -394,14 +394,42 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
                             borderBottomColor: isActive
                                 ? envColor
                                 : "transparent",
-                            padding: "4px",
-                            borderRight: "1px solid white",
+                            paddingTop: "6px",
+                            paddingBottom: "6px",
+                            paddingLeft: "12px",
+                            paddingRight: "12px",
+                            borderRight: "1px solid var(--border)",
                         }}
                         title="Double-click to rename"
                     >
-                        {tab.readOnly && "🔒 "}
-                        {tab.mode === "workspace" && "🎯 "}
-                        {displayName}
+                        <span
+                            style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "4px",
+                            }}
+                        >
+                            {tab.readOnly && (
+                                <span
+                                    className="px-1 text-[9px] border rounded"
+                                    style={{ borderColor: "var(--border)" }}
+                                >
+                                    RO
+                                </span>
+                            )}
+                            {tab.mode === "workspace" && (
+                                <span
+                                    className="px-1 text-[9px] border rounded"
+                                    style={{
+                                        color: "var(--accent)",
+                                        borderColor: "var(--accent)",
+                                    }}
+                                >
+                                    WS
+                                </span>
+                            )}
+                            <span>{displayName}</span>
+                        </span>
                         {isActive && (
                             <div
                                 className="absolute bottom-0 left-0 right-0 h-[2px]"
@@ -426,8 +454,11 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
             {/* Add Tab */}
             <button
                 onClick={addTab}
-                className="px-2 py-1 text-[14px] hover:opacity-80 transition-opacity"
-                style={{ color: "var(--text-muted)" }}
+                className="px-3 py-1 text-[14px] hover:opacity-80 transition-opacity"
+                style={{
+                    color: "var(--text-muted)",
+                    marginLeft: "4px",
+                }}
                 title="New standard tab (⌘T)"
             >
                 +
@@ -436,15 +467,24 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
             {/* Add Workspace Tab */}
             <button
                 onClick={addWorkspaceTab}
-                className="px-2 py-1 text-[11px] hover:opacity-80 transition-opacity border"
+                className="px-3 py-1 text-[11px] font-medium hover:opacity-80 transition-all border rounded"
                 style={{
                     color: "var(--accent)",
                     borderColor: "var(--accent)",
-                    background: "rgba(59, 130, 246, 0.1)",
+                    background: "rgba(59, 130, 246, 0.05)",
+                    marginLeft: "4px",
                 }}
                 title="New workspace tab (auto-routes to DB based on table prefix)"
             >
-                🎯 WS
+                <span
+                    style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "4px",
+                    }}
+                >
+                    <span>WS</span>
+                </span>
             </button>
         </div>
     );

@@ -243,7 +243,7 @@ export default function SQLEditor({
 
     return (
         <Editor
-            height="200px"
+            height="100%"
             language="sql"
             theme="vs-dark"
             value={value}
