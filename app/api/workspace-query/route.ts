@@ -1,7 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPool } from "@/lib/db";
+import { applyVariables, validateVariables } from "@/lib/templates";
 
 export const dynamic = "force-dynamic";
+
+const VARIABLE_USAGE_REGEX = /(?<!\w)@([A-Za-z_][A-Za-z0-9_]*)\b/g;
+
+function getReferencedVariables(sql: string): Set<string> {
+    const usedVariables = new Set<string>();
+    for (const match of sql.matchAll(VARIABLE_USAGE_REGEX)) {
+        usedVariables.add(match[1]);
+    }
+    return usedVariables;
+}
 
 // Extract database names from SQL query using table prefix syntax (db_name.table_name)
 function extractDatabasePrefixes(sql: string): string[] {
@@ -35,11 +46,13 @@ function stripDatabasePrefix(sql: string, dbName: string): string {
 
 export async function POST(request: NextRequest) {
     try {
-        const { query, environment } = await request.json();
+        const body = await request.json();
+        const { sql, variables, environment } = body;
 
-        if (!query || typeof query !== "string") {
+        // Validate required fields
+        if (!sql || typeof sql !== "string") {
             return NextResponse.json(
-                { error: "Query is required" },
+                { error: "SQL is required" },
                 { status: 400 },
             );
         }
@@ -51,8 +64,59 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        // Validate variables if provided
+        if (variables && typeof variables !== "object") {
+            return NextResponse.json(
+                { error: "Variables must be an object" },
+                { status: 400 },
+            );
+        }
+
+        let cleanedSql = sql.trim();
+
+        const providedVariables: Record<string, string> =
+            variables && typeof variables === "object" ? variables : {};
+
+        const referencedVariables = getReferencedVariables(cleanedSql);
+        const missingVariables = [...referencedVariables].filter(
+            (name) =>
+                !Object.prototype.hasOwnProperty.call(providedVariables, name),
+        );
+
+        if (missingVariables.length > 0) {
+            return NextResponse.json(
+                {
+                    error: `SQL references undefined variables: ${missingVariables
+                        .map((name) => `@${name}`)
+                        .join(", ")}`,
+                },
+                { status: 400 },
+            );
+        }
+
+        // Apply variables if provided
+        if (Object.keys(providedVariables).length > 0) {
+            try {
+                validateVariables(providedVariables, cleanedSql);
+                cleanedSql = applyVariables(cleanedSql, providedVariables);
+            } catch (error) {
+                const message =
+                    error instanceof Error
+                        ? error.message
+                        : "Variable validation failed.";
+                return NextResponse.json({ error: message }, { status: 400 });
+            }
+        }
+
+        if (!cleanedSql) {
+            return NextResponse.json(
+                { error: "SQL is empty after variable processing." },
+                { status: 400 },
+            );
+        }
+
         // Extract database prefixes from query
-        const dbPrefixes = extractDatabasePrefixes(query);
+        const dbPrefixes = extractDatabasePrefixes(cleanedSql);
 
         // Validation: Require exactly one database prefix
         if (dbPrefixes.length === 0) {
@@ -113,7 +177,10 @@ export async function POST(request: NextRequest) {
 
             // Strip database prefix from query since PostgreSQL doesn't support cross-DB queries
             // After routing to the correct DB, we need to remove "db_name." from table references
-            const strippedQuery = stripDatabasePrefix(query, routedDatabase);
+            const strippedQuery = stripDatabasePrefix(
+                cleanedSql,
+                routedDatabase,
+            );
 
             // Execute the modified query
             const result = await client.query(strippedQuery);

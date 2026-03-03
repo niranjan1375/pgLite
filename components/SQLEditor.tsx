@@ -13,7 +13,13 @@ interface Column {
 interface SQLEditorProps {
     value: string;
     onChange: (value: string) => void;
-    onRunQuery: (query: string) => void;
+    onRunQuery: (
+        query: string,
+        context?: {
+            isSelection: boolean;
+            selectionStartLineNumber?: number;
+        },
+    ) => void;
     tableColumns: Record<string, Column[]>;
     databases?: string[]; // Available databases for workspace mode autocomplete
 }
@@ -211,12 +217,15 @@ export default function SQLEditor({
             // Priority 1: If there's a selection, use only the selected text
             if (selection && model && !selection.isEmpty()) {
                 const selectedText = model.getValueInRange(selection);
-                onRunQuery(selectedText.trim());
+                onRunQuery(selectedText.trim(), {
+                    isSelection: true,
+                    selectionStartLineNumber: selection.startLineNumber,
+                });
             } else {
                 // Priority 2: Find and run the query at cursor position
                 const queryAtCursor = getQueryAtCursor();
                 if (queryAtCursor) {
-                    onRunQuery(queryAtCursor);
+                    onRunQuery(queryAtCursor, { isSelection: false });
                 }
             }
         });

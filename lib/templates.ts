@@ -1,4 +1,4 @@
-import { readdir, readFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export interface ParsedTemplate {
@@ -15,6 +15,7 @@ const TEMPLATE_ROOT_DIR = path.join(process.cwd(), ".pgconsole", "templates");
 export function parseTemplate(content: string): ParsedTemplate {
     const normalized = content.replace(/^\uFEFF/, "");
     const lines = normalized.split(/\r?\n/);
+    console.log("🚀 ~ lines:", lines);
 
     if (lines.length === 0 || !lines[0].startsWith("@")) {
         throw new Error(
@@ -131,9 +132,29 @@ export function applyVariables(
         VARIABLE_USAGE_REGEX,
         (fullMatch, variableName: string) => {
             const value = variables[variableName];
-            return value ?? fullMatch;
+            return value !== undefined ? formatVariableValue(value) : fullMatch;
         },
     );
+}
+
+function formatVariableValue(value: string): string {
+    const trimmed = value.trim();
+
+    if (trimmed.length === 0) {
+        return "''";
+    }
+
+    const upper = trimmed.toUpperCase();
+    if (upper === "NULL" || upper === "TRUE" || upper === "FALSE") {
+        return upper;
+    }
+
+    const isSingleQuotedLiteral = /^'(?:[^']|'')*'$/.test(trimmed);
+    if (isSingleQuotedLiteral) {
+        return trimmed;
+    }
+
+    return `'${trimmed.replace(/'/g, "''")}'`;
 }
 
 export async function listTemplates(): Promise<string[]> {
@@ -156,6 +177,35 @@ export async function listTemplates(): Promise<string[]> {
 }
 
 export async function readTemplate(name: string): Promise<string> {
+    const normalizedName = normalizeTemplateName(name);
+
+    const filePath = resolveTemplatePath(normalizedName);
+
+    try {
+        return await readFile(filePath, "utf8");
+    } catch (error) {
+        const nodeError = error as NodeJS.ErrnoException;
+        if (nodeError.code === "ENOENT") {
+            throw new Error(`Template '${normalizedName}' not found.`);
+        }
+        throw error;
+    }
+}
+
+export async function writeTemplate(
+    name: string,
+    content: string,
+): Promise<string> {
+    const normalizedName = normalizeTemplateName(name);
+    const filePath = resolveTemplatePath(normalizedName);
+
+    await mkdir(TEMPLATE_ROOT_DIR, { recursive: true });
+    await writeFile(filePath, content, "utf8");
+
+    return normalizedName;
+}
+
+export function normalizeTemplateName(name: string): string {
     if (!name || name.trim().length === 0) {
         throw new Error("Template name is required.");
     }
@@ -172,18 +222,13 @@ export async function readTemplate(name: string): Promise<string> {
         );
     }
 
+    return normalizedName;
+}
+
+function resolveTemplatePath(normalizedName: string): string {
     const filePath = path.resolve(TEMPLATE_ROOT_DIR, normalizedName);
     if (!filePath.startsWith(path.resolve(TEMPLATE_ROOT_DIR) + path.sep)) {
         throw new Error("Invalid template path.");
     }
-
-    try {
-        return await readFile(filePath, "utf8");
-    } catch (error) {
-        const nodeError = error as NodeJS.ErrnoException;
-        if (nodeError.code === "ENOENT") {
-            throw new Error(`Template '${normalizedName}' not found.`);
-        }
-        throw error;
-    }
+    return filePath;
 }

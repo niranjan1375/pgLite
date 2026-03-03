@@ -29,6 +29,9 @@ interface DatabaseTreeProps {
     selectedDatabase: string;
     tableColumns: Record<string, Column[]>;
     onTablePreview: (table: Table) => void;
+    templates?: string[];
+    templatesLoading?: boolean;
+    onTemplateOpen?: (name: string) => void;
     onRefresh?: () => void;
     loading: boolean;
     workspaceMode?: boolean;
@@ -39,6 +42,9 @@ export default function DatabaseTree({
     selectedDatabase,
     tableColumns,
     onTablePreview,
+    templates = [],
+    templatesLoading = false,
+    onTemplateOpen,
     onRefresh,
     loading,
     workspaceMode = false,
@@ -347,6 +353,57 @@ export default function DatabaseTree({
                     }}
                 />
             </div>
+
+            {workspaceMode && (
+                <div
+                    className="px-2 py-2 border-b"
+                    style={{
+                        borderColor: "var(--border)",
+                        background: "var(--panel)",
+                    }}
+                >
+                    <div
+                        className="text-[10px] uppercase tracking-wider px-1 mb-1"
+                        style={{ color: "var(--text-muted)" }}
+                    >
+                        Templates
+                    </div>
+                    <div className="max-h-32 overflow-auto space-y-0.5">
+                        {templatesLoading && (
+                            <p
+                                className="text-[11px] px-1 py-1"
+                                style={{ color: "var(--text-muted)" }}
+                            >
+                                Loading templates...
+                            </p>
+                        )}
+                        {!templatesLoading && templates.length === 0 && (
+                            <p
+                                className="text-[11px] px-1 py-1"
+                                style={{ color: "var(--text-muted)" }}
+                            >
+                                No templates
+                            </p>
+                        )}
+                        {!templatesLoading &&
+                            templates.map((template) => (
+                                <button
+                                    key={template}
+                                    onClick={() => onTemplateOpen?.(template)}
+                                    className="w-full text-left px-2 py-1 text-[11px] rounded hover:opacity-80"
+                                    style={{
+                                        color: "var(--text-primary)",
+                                        background: "var(--bg)",
+                                        border: "1px solid var(--border)",
+                                    }}
+                                    title={`Open template ${template}`}
+                                >
+                                    {template}
+                                </button>
+                            ))}
+                    </div>
+                </div>
+            )}
 
             {/* Tables Tree */}
             <div className="flex-1 overflow-auto p-1">

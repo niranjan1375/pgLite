@@ -19,6 +19,7 @@ interface QueryTab {
     database: string;
     readOnly: boolean;
     mode?: "standard" | "workspace"; // workspace mode auto-routes to DB based on table prefix
+    templateName?: string;
 }
 
 export type { QueryTab };
@@ -29,6 +30,12 @@ export interface QueryTabsRef {
     updateTabEnvironment: (tabId: string, environment: string) => void;
     updateTabDatabase: (tabId: string, database: string) => void;
     toggleTabReadOnly: (tabId: string) => void;
+    openWorkspaceTab: (options: {
+        name: string;
+        content: string;
+        environment: string;
+    }) => void;
+    setActiveTabTemplateName: (templateName: string) => void;
 }
 
 interface QueryTabsProps {
@@ -286,8 +293,49 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
                     ),
                 );
             },
+            openWorkspaceTab: ({ name, content, environment }) => {
+                const tabId = String(nextTabId);
+                const cleanName = name.endsWith(".sql")
+                    ? name.slice(0, -4)
+                    : name;
+
+                const newTab: QueryTab = {
+                    id: tabId,
+                    name: cleanName,
+                    query: content,
+                    environment,
+                    database: "",
+                    readOnly: false,
+                    mode: "workspace",
+                    templateName: name,
+                };
+
+                setTabs((prevTabs) => [...prevTabs, newTab]);
+                setActiveTabId(tabId);
+                setNextTabId((prev) => prev + 1);
+            },
+            setActiveTabTemplateName: (templateName: string) => {
+                const cleanName = templateName.endsWith(".sql")
+                    ? templateName.slice(0, -4)
+                    : templateName;
+
+                setTabs((prevTabs) =>
+                    prevTabs.map((tab) =>
+                        tab.id === activeTabId
+                            ? {
+                                  ...tab,
+                                  templateName,
+                                  name:
+                                      tab.mode === "workspace"
+                                          ? cleanName
+                                          : tab.name,
+                              }
+                            : tab,
+                    ),
+                );
+            },
         }),
-        [activeTabId, activeTab, tabs],
+        [activeTabId, activeTab, tabs, nextTabId],
     );
 
     // Update tab name when environment or database changes

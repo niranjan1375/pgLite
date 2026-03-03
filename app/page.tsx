@@ -18,6 +18,12 @@ import KeyboardHelp from "@/components/KeyboardHelp";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { type QueryTab, type QueryTabsRef } from "@/components/QueryTabs";
 import { getAllEnvironments } from "@/lib/environments";
+import {
+    extractVariables,
+    selectionOverlapsVariableBlock,
+    validateVariableValues,
+    validateVariableReferences,
+} from "@/lib/workspace-utils";
 
 const SQLEditor = dynamic(() => import("@/components/SQLEditor"), {
     ssr: false,
@@ -114,6 +120,8 @@ export default function Home() {
         row: Record<string, unknown>;
         query: string;
     } | null>(null);
+    const [templates, setTemplates] = useState<string[]>([]);
+    const [loadingTemplates, setLoadingTemplates] = useState(false);
 
     // Use refs to track in-flight requests and cache
     const databasesCacheRef = useRef<Record<string, string[]>>({});
@@ -320,11 +328,99 @@ export default function Home() {
         [activeTab],
     );
 
+    const fetchTemplates = useCallback(async () => {
+        setLoadingTemplates(true);
+        try {
+            const res = await fetch("/api/templates", {
+                cache: "no-store",
+            });
+            const data = await res.json();
+            if (!data.error && Array.isArray(data.templates)) {
+                setTemplates(data.templates);
+            }
+        } catch (err) {
+            console.error("Failed to fetch templates:", err);
+        } finally {
+            setLoadingTemplates(false);
+        }
+    }, []);
+
+    const handleTemplateOpen = useCallback(async (name: string) => {
+        try {
+            const res = await fetch(
+                `/api/templates/${encodeURIComponent(name)}`,
+                {
+                    cache: "no-store",
+                },
+            );
+            const data = await res.json();
+            if (!res.ok || data.error) {
+                setError(data.error || "Failed to open template.");
+                return;
+            }
+
+            const env =
+                queryTabsRef.current?.getActiveTab()?.environment || "loadtest";
+            queryTabsRef.current?.openWorkspaceTab({
+                name,
+                content: data.content,
+                environment: env,
+            });
+        } catch (err) {
+            console.error("Failed to open template:", err);
+            setError("Failed to open template.");
+        }
+    }, []);
+
+    const handleSaveTemplate = useCallback(async () => {
+        const currentTab = queryTabsRef.current?.getActiveTab();
+        if (!currentTab || currentTab.mode !== "workspace") return;
+
+        let templateName = currentTab.templateName;
+        if (!templateName) {
+            const inputName = window.prompt("Template name (.sql optional):");
+            if (!inputName) return;
+            templateName = inputName;
+        }
+
+        try {
+            const res = await fetch("/api/templates", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    name: templateName,
+                    content: currentTab.query,
+                }),
+            });
+
+            const data = await res.json();
+            if (!res.ok || data.error) {
+                setError(data.error || "Failed to save template.");
+                return;
+            }
+
+            if (data.name) {
+                queryTabsRef.current?.setActiveTabTemplateName(data.name);
+            }
+
+            await fetchTemplates();
+        } catch (err) {
+            console.error("Failed to save template:", err);
+            setError("Failed to save template.");
+        }
+    }, [fetchTemplates]);
+
     // Fetch tables and columns when active tab's database or environment changes
     useEffect(() => {
         fetchTablesAndColumns();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeTab?.database, activeTab?.environment]);
+
+    useEffect(() => {
+        if (activeTab?.mode === "workspace") {
+            fetchTemplates();
+        }
+    }, [activeTab?.mode, fetchTemplates]);
 
     // Helper to detect write queries
     const isWriteQuery = useCallback((query: string): boolean => {
@@ -392,6 +488,7 @@ export default function Home() {
             database: string,
             readOnly: boolean,
             mode: "standard" | "workspace" = "standard",
+            variables?: Record<string, string>,
         ) => {
             if (!query.trim()) return;
 
@@ -409,10 +506,14 @@ export default function Home() {
                         ? "/api/workspace-query"
                         : "/api/query";
 
-                // Workspace mode only needs query and environment (DB is auto-detected)
+                // Workspace mode sends structured payload with sql and variables
                 const requestBody =
                     mode === "workspace"
-                        ? { query, environment }
+                        ? {
+                              sql: query,
+                              variables: variables || {},
+                              environment,
+                          }
                         : { query, database, environment, readOnly };
 
                 const res = await fetch(endpoint, {
@@ -459,6 +560,7 @@ export default function Home() {
             database: string,
             readOnly: boolean,
             mode: "standard" | "workspace" = "standard",
+            variables?: Record<string, string>,
         ) => {
             if (!query.trim()) return;
 
@@ -470,6 +572,7 @@ export default function Home() {
                     database,
                     readOnly,
                     "workspace",
+                    variables,
                 );
                 return;
             }
@@ -743,6 +846,9 @@ export default function Home() {
                                 selectedDatabase={activeTab?.database || ""}
                                 tableColumns={tableColumns}
                                 onTablePreview={handleTablePreview}
+                                templates={templates}
+                                templatesLoading={loadingTemplates}
+                                onTemplateOpen={handleTemplateOpen}
                                 onRefresh={() => fetchTablesAndColumns(true)}
                                 loading={loadingTables}
                                 workspaceMode={activeTab?.mode === "workspace"}
@@ -797,18 +903,95 @@ export default function Home() {
                                                 val || "",
                                             );
                                         }}
-                                        onRunQuery={(queryToRun) => {
+                                        onRunQuery={(
+                                            queryToRun,
+                                            executionContext,
+                                        ) => {
                                             const currentTab =
                                                 queryTabsRef.current?.getActiveTab();
                                             if (currentTab) {
-                                                runQuery(
-                                                    queryToRun,
-                                                    currentTab.environment,
-                                                    currentTab.database,
-                                                    currentTab.readOnly,
-                                                    currentTab.mode ||
-                                                        "standard",
-                                                );
+                                                // Workspace mode: extract variables and send structured payload
+                                                if (
+                                                    currentTab.mode ===
+                                                    "workspace"
+                                                ) {
+                                                    try {
+                                                        // Extract variables from full editor content
+                                                        const {
+                                                            variables,
+                                                            variableBlockEndLine,
+                                                        } = extractVariables(
+                                                            currentTab.query,
+                                                        );
+
+                                                        if (
+                                                            executionContext?.isSelection &&
+                                                            typeof executionContext.selectionStartLineNumber ===
+                                                                "number" &&
+                                                            selectionOverlapsVariableBlock(
+                                                                executionContext.selectionStartLineNumber -
+                                                                    1,
+                                                                variableBlockEndLine,
+                                                            )
+                                                        ) {
+                                                            throw new Error(
+                                                                "Selection overlaps variable block. Select SQL below variable definitions.",
+                                                            );
+                                                        }
+
+                                                        const sqlToExecute =
+                                                            queryToRun.trim();
+
+                                                        if (!sqlToExecute) {
+                                                            throw new Error(
+                                                                "No SQL to execute.",
+                                                            );
+                                                        }
+
+                                                        // Validate variable values if any exist
+                                                        if (
+                                                            Object.keys(
+                                                                variables,
+                                                            ).length > 0
+                                                        ) {
+                                                            validateVariableValues(
+                                                                variables,
+                                                            );
+                                                            validateVariableReferences(
+                                                                sqlToExecute,
+                                                                variables,
+                                                            );
+                                                        }
+
+                                                        // Execute with structured payload
+                                                        runQuery(
+                                                            sqlToExecute,
+                                                            currentTab.environment,
+                                                            currentTab.database,
+                                                            currentTab.readOnly,
+                                                            "workspace",
+                                                            variables,
+                                                        );
+                                                    } catch (error) {
+                                                        // Show validation error
+                                                        setError(
+                                                            error instanceof
+                                                                Error
+                                                                ? error.message
+                                                                : "Variable validation failed",
+                                                        );
+                                                    }
+                                                } else {
+                                                    // Standard mode: use selected or statement at cursor
+                                                    runQuery(
+                                                        queryToRun,
+                                                        currentTab.environment,
+                                                        currentTab.database,
+                                                        currentTab.readOnly,
+                                                        currentTab.mode ||
+                                                            "standard",
+                                                    );
+                                                }
                                             }
                                         }}
                                         tableColumns={editorTableColumns}
@@ -829,42 +1012,104 @@ export default function Home() {
                                     borderColor: "var(--border)",
                                 }}
                             >
-                                <button
-                                    onClick={() => {
-                                        const currentTab =
-                                            queryTabsRef.current?.getActiveTab();
-                                        if (currentTab) {
-                                            runQuery(
-                                                currentTab.query,
-                                                currentTab.environment,
-                                                currentTab.database,
-                                                currentTab.readOnly,
-                                                currentTab.mode || "standard",
-                                            );
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => {
+                                            const currentTab =
+                                                queryTabsRef.current?.getActiveTab();
+                                            if (currentTab) {
+                                                // Workspace mode: extract variables
+                                                if (
+                                                    currentTab.mode ===
+                                                    "workspace"
+                                                ) {
+                                                    try {
+                                                        const {
+                                                            variables,
+                                                            sqlWithoutVars,
+                                                        } = extractVariables(
+                                                            currentTab.query,
+                                                        );
+
+                                                        if (
+                                                            Object.keys(
+                                                                variables,
+                                                            ).length > 0
+                                                        ) {
+                                                            validateVariableValues(
+                                                                variables,
+                                                            );
+                                                            validateVariableReferences(
+                                                                sqlWithoutVars,
+                                                                variables,
+                                                            );
+                                                        }
+
+                                                        runQuery(
+                                                            sqlWithoutVars,
+                                                            currentTab.environment,
+                                                            currentTab.database,
+                                                            currentTab.readOnly,
+                                                            "workspace",
+                                                            variables,
+                                                        );
+                                                    } catch (error) {
+                                                        setError(
+                                                            error instanceof
+                                                                Error
+                                                                ? error.message
+                                                                : "Variable validation failed",
+                                                        );
+                                                    }
+                                                } else {
+                                                    // Standard mode: run full query
+                                                    runQuery(
+                                                        currentTab.query,
+                                                        currentTab.environment,
+                                                        currentTab.database,
+                                                        currentTab.readOnly,
+                                                        currentTab.mode ||
+                                                            "standard",
+                                                    );
+                                                }
+                                            }
+                                        }}
+                                        disabled={
+                                            loading || !activeTab?.query.trim()
                                         }
-                                    }}
-                                    disabled={
-                                        loading || !activeTab?.query.trim()
-                                    }
-                                    className="hover:opacity-80 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
-                                    style={{
-                                        color: loading
-                                            ? "var(--text-muted)"
-                                            : "var(--accent)",
-                                    }}
-                                >
-                                    {loading ? (
-                                        <span className="flex items-center gap-2">
-                                            <span className="inline-block w-2 h-2 border border-current border-t-transparent animate-spin" />
-                                            Executing
-                                            {executionTime !== undefined
-                                                ? `... ${(executionTime / 1000).toFixed(2)}s`
-                                                : "..."}
-                                        </span>
-                                    ) : (
-                                        "[ Run ⌘↵ ]"
+                                        className="hover:opacity-80 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
+                                        style={{
+                                            color: loading
+                                                ? "var(--text-muted)"
+                                                : "var(--accent)",
+                                        }}
+                                    >
+                                        {loading ? (
+                                            <span className="flex items-center gap-2">
+                                                <span className="inline-block w-2 h-2 border border-current border-t-transparent animate-spin" />
+                                                Executing
+                                                {executionTime !== undefined
+                                                    ? `... ${(executionTime / 1000).toFixed(2)}s`
+                                                    : "..."}
+                                            </span>
+                                        ) : (
+                                            "[ Run ⌘↵ ]"
+                                        )}
+                                    </button>
+                                    {activeTab?.mode === "workspace" && (
+                                        <button
+                                            onClick={handleSaveTemplate}
+                                            className="px-2 py-0.5 hover:opacity-80 transition-opacity border rounded text-[10px]"
+                                            style={{
+                                                color: "var(--accent)",
+                                                borderColor: "var(--accent)",
+                                            }}
+                                            title="Save or overwrite template"
+                                        >
+                                            SAVE TEMPLATE
+                                        </button>
                                     )}
-                                </button>
+                                </div>
                                 <button
                                     onClick={() => fetchTablesAndColumns(true)}
                                     disabled={loadingTables}
