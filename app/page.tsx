@@ -24,6 +24,7 @@ import {
     validateVariableValues,
     validateVariableReferences,
 } from "@/lib/workspace-utils";
+import { RefreshIcon } from "@/icons";
 
 const SQLEditor = dynamic(() => import("@/components/SQLEditor"), {
     ssr: false,
@@ -1017,16 +1018,16 @@ export default function Home() {
                                     {activeTab?.mode === "workspace" && (
                                         <button
                                             onClick={handleSaveTemplate}
-                                            className="px-2 py-0.5 hover:opacity-80 transition-opacity border rounded text-[10px]"
+                                            className="px-2 py-0.5 hover:opacity-80 transition-opacity  rounded text-[10px]"
                                             style={{
                                                 color: "var(--accent)",
-                                                borderColor: "var(--accent)",
+                                                // borderColor: "var(--accent)",
                                                 padding: "4px",
                                                 fontSize: "12px",
                                             }}
                                             title="Save or overwrite template"
                                         >
-                                            Save template
+                                            [ Save template ]
                                         </button>
                                     )}
                                 </div>
@@ -1037,20 +1038,35 @@ export default function Home() {
                                             fetchTablesAndColumns(true)
                                         }
                                         disabled={loadingTables}
-                                        className="px-2 py-0.5 hover:opacity-80 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed border rounded text-[10px]"
+                                        className="px-2 py-1 hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed rounded text-[10px] w-full flex justify-center items-center mt-auto"
                                         style={{
                                             color: "var(--text-muted)",
-                                            borderColor: "var(--border)",
                                         }}
                                         title="Refresh autocomplete/intellisense data"
                                     >
                                         {loadingTables ? (
                                             <span className="flex items-center gap-1">
-                                                <span className="inline-block w-2 h-2 border border-current border-t-transparent animate-spin rounded-full" />
-                                                Refreshing
+                                                [
+                                                <RefreshIcon className="w-3 h-3 animate-spin" />
+                                                <span className="uppercase tracking-tighter">
+                                                    Refreshing
+                                                </span>
+                                                <span className="flex gap-0.5 ml-1">
+                                                    <span className="w-0.5 h-0.5 bg-current animate-pulse [animation-delay:-0.3s]"></span>
+                                                    <span className="w-0.5 h-0.5 bg-current animate-pulse [animation-delay:-0.15s]"></span>
+                                                    <span className="w-0.5 h-0.5 bg-current animate-pulse"></span>
+                                                </span>
+                                                ]
                                             </span>
                                         ) : (
-                                            "⟳ Intellisense"
+                                            <div className="flex items-center gap-1 opacity-70">
+                                                [
+                                                <span className="flex items-center gap-1  tracking-tighter">
+                                                    <RefreshIcon className="w-3 h-3" />
+                                                    Intellisense
+                                                </span>
+                                                ]
+                                            </div>
                                         )}
                                     </button>
 
@@ -1123,6 +1139,7 @@ export default function Home() {
                                             color: loading
                                                 ? "var(--text-muted)"
                                                 : "var(--accent)",
+                                            whiteSpace: "nowrap",
                                         }}
                                     >
                                         {loading ? (
