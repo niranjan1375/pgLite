@@ -14,18 +14,18 @@
     --text-muted: #8b949e;
 
     /* Accent */
-    --accent: #00ff41;
-    --accent-hover: #00cc34;
+    --accent: #22c55e;
+    --accent-hover: #16a34a;
 
     /* Environment Colors */
-    --env-dev: #00c853;
-    --env-staging: #ff9100;
-    --env-prod: #ff1744;
+    --env-dev: #10b981;
+    --env-staging: #f59e0b;
+    --env-prod: #ef4444;
 
     /* Status */
-    --error: #ff4444;
-    --warning: #ffaa00;
-    --success: #00ff41;
+    --error: #ef4444;
+    --warning: #f59e0b;
+    --success: #22c55e;
 
     /* Grid */
     --grid-line: #1a1f28;

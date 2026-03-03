@@ -62,6 +62,15 @@ export default function ResultsTable({
     const resizeStartWidth = useRef<number>(0);
     const resizeObserverRef = useRef<ResizeObserver | null>(null);
 
+    useEffect(() => {
+        console.log(
+            "ResultsTable props - readOnly:",
+            readOnly,
+            "hasDeleteHandler:",
+            !!onDeleteRow,
+        );
+    }, [readOnly, onDeleteRow]);
+
     // Virtual scrolling constants
     const ROW_HEIGHT = density === "compact" ? 32 : 41;
     const OVERSCAN = 15; // Extra rows to render above/below viewport for smooth scrolling
@@ -630,9 +639,12 @@ export default function ResultsTable({
                                             </button>
                                             {!readOnly && onDeleteRow && (
                                                 <button
-                                                    onClick={() =>
-                                                        onDeleteRow(row)
-                                                    }
+                                                    onClick={() => {
+                                                        console.log(
+                                                            "Delete button clicked!",
+                                                        );
+                                                        onDeleteRow(row);
+                                                    }}
                                                     className="px-2 py-1 rounded border hover:opacity-80 transition-opacity text-[11px] font-medium"
                                                     style={{
                                                         color: "var(--warning)",

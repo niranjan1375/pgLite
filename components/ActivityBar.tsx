@@ -1,25 +1,14 @@
 "use client";
 
-import { useState } from "react";
-
 interface ActivityBarProps {
-    onSectionChange?: (section: string) => void;
+    sidebarCollapsed: boolean;
+    onToggleSidebar: () => void;
 }
 
-export default function ActivityBar({ onSectionChange }: ActivityBarProps) {
-    const [activeSection, setActiveSection] = useState("explorer");
-
-    const sections = [
-        { id: "explorer", icon: "≡", label: "Explorer" },
-        { id: "history", icon: "↻", label: "History" },
-        { id: "settings", icon: "⚙", label: "Settings" },
-    ];
-
-    const handleClick = (id: string) => {
-        setActiveSection(id);
-        onSectionChange?.(id);
-    };
-
+export default function ActivityBar({
+    sidebarCollapsed,
+    onToggleSidebar,
+}: ActivityBarProps) {
     return (
         <div
             className="w-[40px] h-full flex flex-col items-center border-r"
@@ -28,32 +17,28 @@ export default function ActivityBar({ onSectionChange }: ActivityBarProps) {
                 borderColor: "var(--border)",
             }}
         >
-            {sections.map((section) => (
-                <button
-                    key={section.id}
-                    onClick={() => handleClick(section.id)}
-                    className="w-full h-[40px] flex items-center justify-center text-[20px] transition-colors relative"
-                    style={{
-                        color:
-                            activeSection === section.id
-                                ? "var(--accent)"
-                                : "var(--text-muted)",
-                        background:
-                            activeSection === section.id
-                                ? "var(--panel)"
-                                : "transparent",
-                    }}
-                    title={section.label}
-                >
-                    {section.icon}
-                    {activeSection === section.id && (
-                        <div
-                            className="absolute left-0 top-0 bottom-0 w-[2px]"
-                            style={{ background: "var(--accent)" }}
-                        />
-                    )}
-                </button>
-            ))}
+            <button
+                onClick={onToggleSidebar}
+                className="w-full h-[40px] flex items-center justify-center text-[18px] transition-colors relative"
+                style={{
+                    color: "var(--accent)",
+                    background: "var(--panel)",
+                }}
+                title={
+                    sidebarCollapsed
+                        ? "Show explorer (Cmd/Ctrl+B)"
+                        : "Hide explorer (Cmd/Ctrl+B)"
+                }
+                aria-label={
+                    sidebarCollapsed ? "Show explorer" : "Hide explorer"
+                }
+            >
+                {sidebarCollapsed ? "▸" : "◂"}
+                <div
+                    className="absolute left-0 top-0 bottom-0 w-[2px]"
+                    style={{ background: "var(--accent)" }}
+                />
+            </button>
         </div>
     );
 }

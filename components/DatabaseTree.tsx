@@ -391,7 +391,39 @@ export default function DatabaseTree({
                                             isDbExpanded ? "rotate-90" : ""
                                         }`}
                                     >
-                                        ►
+                                        <svg
+                                            height={12}
+                                            width={12}
+                                            viewBox="-1.59 0 26.804 26.804"
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            fill="#000000"
+                                        >
+                                            <g
+                                                id="SVGRepo_bgCarrier"
+                                                stroke-width="0"
+                                            ></g>
+                                            <g
+                                                id="SVGRepo_tracerCarrier"
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                            ></g>
+                                            <g id="SVGRepo_iconCarrier">
+                                                {" "}
+                                                <g
+                                                    id="Group_37"
+                                                    data-name="Group 37"
+                                                    transform="translate(-108.142 -942.014)"
+                                                >
+                                                    {" "}
+                                                    <path
+                                                        id="Path_17"
+                                                        data-name="Path 17"
+                                                        d="M109.642,968.818a1.5,1.5,0,0,1-1.5-1.5v-23.8a1.5,1.5,0,0,1,2.25-1.3l20.616,11.9a1.5,1.5,0,0,1,0,2.6l-20.616,11.9A1.5,1.5,0,0,1,109.642,968.818Zm1.5-22.707V964.72l16.116-9.3Z"
+                                                        fill="#f3f3f3"
+                                                    ></path>{" "}
+                                                </g>{" "}
+                                            </g>
+                                        </svg>
                                     </span>
                                     <span
                                         className="text-[11px]"
@@ -446,7 +478,39 @@ export default function DatabaseTree({
                                                                 : ""
                                                         }`}
                                                     >
-                                                        ►
+                                                        <svg
+                                                            height={10}
+                                                            width={10}
+                                                            viewBox="-1.59 0 26.804 26.804"
+                                                            xmlns="http://www.w3.org/2000/svg"
+                                                            fill="#000000"
+                                                        >
+                                                            <g
+                                                                id="SVGRepo_bgCarrier"
+                                                                stroke-width="0"
+                                                            ></g>
+                                                            <g
+                                                                id="SVGRepo_tracerCarrier"
+                                                                stroke-linecap="round"
+                                                                stroke-linejoin="round"
+                                                            ></g>
+                                                            <g id="SVGRepo_iconCarrier">
+                                                                {" "}
+                                                                <g
+                                                                    id="Group_37"
+                                                                    data-name="Group 37"
+                                                                    transform="translate(-108.142 -942.014)"
+                                                                >
+                                                                    {" "}
+                                                                    <path
+                                                                        id="Path_17"
+                                                                        data-name="Path 17"
+                                                                        d="M109.642,968.818a1.5,1.5,0,0,1-1.5-1.5v-23.8a1.5,1.5,0,0,1,2.25-1.3l20.616,11.9a1.5,1.5,0,0,1,0,2.6l-20.616,11.9A1.5,1.5,0,0,1,109.642,968.818Zm1.5-22.707V964.72l16.116-9.3Z"
+                                                                        fill="#f3f3f3"
+                                                                    ></path>{" "}
+                                                                </g>{" "}
+                                                            </g>
+                                                        </svg>
                                                     </span>
                                                     <span className="text-[11px]">
                                                         <Icon type="schema" />
@@ -680,9 +744,7 @@ export default function DatabaseTree({
                                                 ? "rotate-90"
                                                 : ""
                                         }`}
-                                    >
-                                        ►
-                                    </span>
+                                    ></span>
                                     <Icon type="schema" />
                                     {schema === "public"
                                         ? "TABLES"
@@ -731,7 +793,37 @@ export default function DatabaseTree({
                                                                         "center",
                                                                 }}
                                                             >
-                                                                ►
+                                                                <svg
+                                                                    viewBox="-1.59 0 26.804 26.804"
+                                                                    xmlns="http://www.w3.org/2000/svg"
+                                                                    fill="#000000"
+                                                                >
+                                                                    <g
+                                                                        id="SVGRepo_bgCarrier"
+                                                                        stroke-width="0"
+                                                                    ></g>
+                                                                    <g
+                                                                        id="SVGRepo_tracerCarrier"
+                                                                        stroke-linecap="round"
+                                                                        stroke-linejoin="round"
+                                                                    ></g>
+                                                                    <g id="SVGRepo_iconCarrier">
+                                                                        {" "}
+                                                                        <g
+                                                                            id="Group_37"
+                                                                            data-name="Group 37"
+                                                                            transform="translate(-108.142 -942.014)"
+                                                                        >
+                                                                            {" "}
+                                                                            <path
+                                                                                id="Path_17"
+                                                                                data-name="Path 17"
+                                                                                d="M109.642,968.818a1.5,1.5,0,0,1-1.5-1.5v-23.8a1.5,1.5,0,0,1,2.25-1.3l20.616,11.9a1.5,1.5,0,0,1,0,2.6l-20.616,11.9A1.5,1.5,0,0,1,109.642,968.818Zm1.5-22.707V964.72l16.116-9.3Z"
+                                                                                fill="#f3f3f3"
+                                                                            ></path>{" "}
+                                                                        </g>{" "}
+                                                                    </g>
+                                                                </svg>
                                                             </span>
                                                         </button>
                                                         <button

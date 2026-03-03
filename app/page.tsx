@@ -99,6 +99,12 @@ export default function Home() {
         }
         return 280;
     });
+    const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+        if (typeof window !== "undefined") {
+            return localStorage.getItem("sidebarCollapsed") === "true";
+        }
+        return false;
+    });
     const [currentTable, setCurrentTable] = useState<{
         name: string;
         schema: string;
@@ -156,19 +162,20 @@ export default function Home() {
         const handleResizeMove = (e: MouseEvent) => {
             if (!isResizingRef.current) return;
             const delta = e.clientY - resizeStartYRef.current;
-            
+
             // Calculate available space (viewport - fixed UI elements)
             const viewportHeight = window.innerHeight;
             const minResultsHeight = 200; // Minimum space for results table
             const fixedUIHeight = 150; // Tabs, status bar, etc.
-            const maxEditorHeight = viewportHeight - minResultsHeight - fixedUIHeight;
-            
+            const maxEditorHeight =
+                viewportHeight - minResultsHeight - fixedUIHeight;
+
             const newHeight = Math.min(
                 Math.max(
                     resizeStartHeightRef.current + delta,
-                    150 // Min 150px for editor
+                    150, // Min 150px for editor
                 ),
-                maxEditorHeight // Don't exceed viewport
+                maxEditorHeight, // Don't exceed viewport
             );
             setEditorHeight(newHeight);
         };
@@ -190,6 +197,27 @@ export default function Home() {
             document.removeEventListener("mouseup", handleResizeEnd);
         };
     }, [editorHeight]);
+
+    useEffect(() => {
+        localStorage.setItem("sidebarCollapsed", sidebarCollapsed.toString());
+    }, [sidebarCollapsed]);
+
+    useEffect(() => {
+        const handleToggleSidebarShortcut = (e: KeyboardEvent) => {
+            if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "b") {
+                e.preventDefault();
+                setSidebarCollapsed((prev) => !prev);
+            }
+        };
+
+        document.addEventListener("keydown", handleToggleSidebarShortcut);
+        return () => {
+            document.removeEventListener(
+                "keydown",
+                handleToggleSidebarShortcut,
+            );
+        };
+    }, []);
 
     // Fetch tables and columns for the active tab
     const fetchTablesAndColumns = useCallback(
@@ -324,6 +352,39 @@ export default function Home() {
         );
     }, []);
 
+    // Helper to extract table info from SELECT queries
+    const extractTableFromQuery = useCallback(
+        (
+            query: string,
+            database: string,
+        ): { name: string; schema: string; database: string } | null => {
+            const trimmedQuery = query.trim().toUpperCase();
+            if (!trimmedQuery.startsWith("SELECT")) return null;
+
+            // Match: FROM table_name, FROM schema.table_name, or FROM database.schema.table_name
+            const fromMatch = query.match(
+                /FROM\s+([a-zA-Z0-9_]+\.)?([a-zA-Z0-9_]+\.)?([a-zA-Z0-9_]+)/i,
+            );
+            if (!fromMatch) return null;
+
+            const parts = fromMatch[0].replace(/FROM\s+/i, "").split(".");
+
+            if (parts.length === 1) {
+                // FROM table_name -> use public schema
+                return { name: parts[0], schema: "public", database };
+            } else if (parts.length === 2) {
+                // FROM schema.table_name
+                return { name: parts[1], schema: parts[0], database };
+            } else if (parts.length === 3) {
+                // FROM database.schema.table_name
+                return { name: parts[2], schema: parts[1], database: parts[0] };
+            }
+
+            return null;
+        },
+        [],
+    );
+
     const executeQuery = useCallback(
         async (
             query: string,
@@ -371,6 +432,15 @@ export default function Home() {
                         setError(data.error);
                     } else {
                         setResult(data);
+
+                        // Extract table info from SELECT queries to enable delete functionality
+                        const tableInfo = extractTableFromQuery(
+                            query,
+                            database,
+                        );
+                        if (tableInfo) {
+                            setCurrentTable(tableInfo);
+                        }
                     }
                     setLoading(false);
                 });
@@ -379,7 +449,7 @@ export default function Home() {
                 setLoading(false);
             }
         },
-        [],
+        [extractTableFromQuery],
     );
 
     const runQuery = useCallback(
@@ -473,7 +543,12 @@ export default function Home() {
     // Handle delete row
     const handleDeleteRow = useCallback(
         async (row: Record<string, unknown>) => {
-            if (!currentTable) return;
+            console.log("Delete clicked, currentTable:", currentTable);
+            console.log("Row data:", row);
+            if (!currentTable) {
+                console.error("No currentTable set!");
+                return;
+            }
 
             // Build WHERE clause using all columns to uniquely identify the row
             const whereClauses = Object.entries(row)
@@ -494,6 +569,8 @@ export default function Home() {
                     : `${currentTable.schema}.${currentTable.name}`;
 
             const deleteQuery = `DELETE FROM ${fullTableName} WHERE ${whereClauses};`;
+
+            console.log("Delete query:", deleteQuery);
 
             // Show confirmation dialog
             setDeleteConfirm({ row, query: deleteQuery });
@@ -622,48 +699,57 @@ export default function Home() {
             }}
         >
             {/* Activity Bar - 40px left strip */}
-            <ActivityBar />
+            <ActivityBar
+                sidebarCollapsed={sidebarCollapsed}
+                onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
+            />
 
             {/* Main Layout */}
             <div className="flex-1 flex flex-col min-w-0">
                 {/* Query Tabs */}
                 <div
-                    className="border-b flex-shrink-0"
+                    className="border-b flex-shrink-0 flex items-stretch"
                     style={{ borderColor: "var(--border)" }}
                 >
-                    <QueryTabs
-                        ref={queryTabsRef}
-                        globalDatabase={activeTab?.database || ""}
-                        globalEnvironment={activeTab?.environment || "loadtest"}
-                        databases={
-                            activeTab
-                                ? databasesByEnv[activeTab.environment] || []
-                                : []
-                        }
-                        onTabChange={handleTabChange}
-                    />
+                    <div className="flex-1 min-w-0">
+                        <QueryTabs
+                            ref={queryTabsRef}
+                            globalDatabase={activeTab?.database || ""}
+                            globalEnvironment={
+                                activeTab?.environment || "loadtest"
+                            }
+                            databases={
+                                activeTab
+                                    ? databasesByEnv[activeTab.environment] ||
+                                      []
+                                    : []
+                            }
+                            onTabChange={handleTabChange}
+                        />
+                    </div>
                 </div>
 
                 {/* Content: Explorer | Editor + Results */}
                 <div className="flex flex-1 min-h-0">
-                    {/* Explorer Sidebar - 240px */}
-                    <aside
-                        className="w-[240px] flex-shrink-0 border-r flex flex-col"
-                        style={{
-                            background: "var(--panel)",
-                            borderColor: "var(--border)",
-                        }}
-                    >
-                        <DatabaseTree
-                            selectedDatabase={activeTab?.database || ""}
-                            tableColumns={tableColumns}
-                            onTablePreview={handleTablePreview}
-                            onRefresh={() => fetchTablesAndColumns(true)}
-                            loading={loadingTables}
-                            workspaceMode={activeTab?.mode === "workspace"}
-                            workspaceSchemas={workspaceSchemas}
-                        />
-                    </aside>
+                    {!sidebarCollapsed && (
+                        <aside
+                            className="w-[240px] flex-shrink-0 border-r flex flex-col"
+                            style={{
+                                background: "var(--panel)",
+                                borderColor: "var(--border)",
+                            }}
+                        >
+                            <DatabaseTree
+                                selectedDatabase={activeTab?.database || ""}
+                                tableColumns={tableColumns}
+                                onTablePreview={handleTablePreview}
+                                onRefresh={() => fetchTablesAndColumns(true)}
+                                loading={loadingTables}
+                                workspaceMode={activeTab?.mode === "workspace"}
+                                workspaceSchemas={workspaceSchemas}
+                            />
+                        </aside>
+                    )}
 
                     {/* Editor + Results */}
                     <main className="flex-1 flex flex-col min-w-0">
@@ -804,9 +890,9 @@ export default function Home() {
                         {/* Resize Handle */}
                         <div
                             className="h-[4px] flex-shrink-0 cursor-row-resize hover:bg-blue-500/50 active:bg-blue-500 transition-colors border-b"
-                            style={{ 
+                            style={{
                                 borderColor: "var(--border)",
-                                background: "var(--border)"
+                                background: "var(--border)",
                             }}
                             onMouseDown={handleResizeStart}
                             title="Drag to resize editor"
