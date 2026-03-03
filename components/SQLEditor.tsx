@@ -4,6 +4,39 @@ import { useRef, useEffect, useCallback } from "react";
 import Editor, { OnMount } from "@monaco-editor/react";
 import type * as monacoEditor from "monaco-editor";
 
+interface StatementInfo {
+    text: string;
+    startLine: number;
+    endLine: number;
+}
+
+const RUNNABLE_SQL_PREFIXES = [
+    "SELECT",
+    "WITH",
+    "INSERT",
+    "UPDATE",
+    "DELETE",
+    "CREATE",
+    "ALTER",
+    "DROP",
+    "TRUNCATE",
+    "MERGE",
+    "CALL",
+    "EXPLAIN",
+    "VALUES",
+] as const;
+
+function isRunnableSqlStatement(text: string): boolean {
+    const normalized = text.trim().toUpperCase();
+    if (!normalized || normalized.startsWith("--")) {
+        return false;
+    }
+
+    return RUNNABLE_SQL_PREFIXES.some((prefix) =>
+        normalized.startsWith(prefix),
+    );
+}
+
 interface Column {
     name: string;
     type: string;
@@ -13,6 +46,7 @@ interface Column {
 interface SQLEditorProps {
     value: string;
     onChange: (value: string) => void;
+    isExecuting?: boolean;
     onRunQuery: (
         query: string,
         context?: {
@@ -24,9 +58,52 @@ interface SQLEditorProps {
     databases?: string[]; // Available databases for workspace mode autocomplete
 }
 
+function getStatements(model: monacoEditor.editor.ITextModel): StatementInfo[] {
+    const statements: StatementInfo[] = [];
+
+    let variableBlockEndLine = 0;
+    const totalLines = model.getLineCount();
+    for (let line = 1; line <= totalLines; line++) {
+        const lineContent = model.getLineContent(line).trim();
+        if (lineContent.startsWith("@")) {
+            variableBlockEndLine = line;
+            continue;
+        }
+        break;
+    }
+
+    for (let line = variableBlockEndLine + 1; line <= totalLines; line++) {
+        const lineContent = model.getLineContent(line);
+        if (!lineContent.trim()) {
+            continue;
+        }
+
+        const lineParts = lineContent.split(";");
+        for (const part of lineParts) {
+            const trimmedPart = part.trim();
+            if (!trimmedPart) {
+                continue;
+            }
+
+            if (!isRunnableSqlStatement(trimmedPart)) {
+                continue;
+            }
+
+            statements.push({
+                text: trimmedPart,
+                startLine: line,
+                endLine: line,
+            });
+        }
+    }
+
+    return statements;
+}
+
 export default function SQLEditor({
     value,
     onChange,
+    isExecuting = false,
     onRunQuery,
     tableColumns,
     databases = [],
@@ -36,6 +113,94 @@ export default function SQLEditor({
     );
     const monacoRef = useRef<typeof monacoEditor | null>(null);
     const completionProviderRef = useRef<monacoEditor.IDisposable | null>(null);
+    const statementDecorationIdsRef = useRef<string[]>([]);
+    const statementsRef = useRef<StatementInfo[]>([]);
+    const mouseDownDisposableRef = useRef<monacoEditor.IDisposable | null>(
+        null,
+    );
+    const contentChangeDisposableRef = useRef<monacoEditor.IDisposable | null>(
+        null,
+    );
+    const onRunQueryRef = useRef(onRunQuery);
+    const isExecutingRef = useRef(isExecuting);
+    const previousExecutingRef = useRef(isExecuting);
+    const lastTriggerAtRef = useRef(0);
+    const activeRunLineRef = useRef<number | null>(null);
+    const runStateRef = useRef<"idle" | "running" | "success">("idle");
+    const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+        null,
+    );
+    const refreshDecorationsRef = useRef<(() => void) | null>(null);
+
+    const isStatementGlyphClick = useCallback(
+        (event: monacoEditor.editor.IEditorMouseEvent) => {
+            const element = event.target.element as HTMLElement | null;
+            if (!element) return false;
+
+            if (element.classList.contains("statement-run-glyph")) {
+                return true;
+            }
+
+            return Boolean(element.closest(".statement-run-glyph"));
+        },
+        [],
+    );
+
+    useEffect(() => {
+        onRunQueryRef.current = onRunQuery;
+    }, [onRunQuery]);
+
+    useEffect(() => {
+        const wasExecuting = previousExecutingRef.current;
+        previousExecutingRef.current = isExecuting;
+        isExecutingRef.current = isExecuting;
+
+        if (!wasExecuting && isExecuting) {
+            runStateRef.current = "running";
+            refreshDecorationsRef.current?.();
+            return;
+        }
+
+        if (wasExecuting && !isExecuting && activeRunLineRef.current !== null) {
+            runStateRef.current = "success";
+            refreshDecorationsRef.current?.();
+        }
+    }, [isExecuting]);
+
+    const triggerRun = useCallback(
+        (
+            query: string,
+            context?: {
+                isSelection: boolean;
+                selectionStartLineNumber?: number;
+            },
+        ) => {
+            const now = Date.now();
+            if (now - lastTriggerAtRef.current < 300) {
+                return;
+            }
+
+            if (isExecutingRef.current) {
+                return;
+            }
+
+            // Clear any previous success state when starting a new execution
+            if (runStateRef.current === "success") {
+                runStateRef.current = "idle";
+                activeRunLineRef.current = null;
+            }
+
+            if (typeof context?.selectionStartLineNumber === "number") {
+                activeRunLineRef.current = context.selectionStartLineNumber;
+            }
+            runStateRef.current = "running";
+            refreshDecorationsRef.current?.();
+
+            lastTriggerAtRef.current = now;
+            onRunQueryRef.current(query, context);
+        },
+        [],
+    );
 
     // Function to register/update completion provider
     const registerCompletionProvider = useCallback(
@@ -167,6 +332,56 @@ export default function SQLEditor({
         editorRef.current = editor;
         monacoRef.current = monaco;
 
+        const updateStatementRunDecorations = () => {
+            const model = editor.getModel();
+            if (!model) return;
+
+            const statements = getStatements(model);
+            statementsRef.current = statements;
+
+            const newDecorations: monacoEditor.editor.IModelDeltaDecoration[] =
+                statements.map((statement) => {
+                    const isActiveRunLine =
+                        activeRunLineRef.current === statement.startLine;
+
+                    const iconClass =
+                        isActiveRunLine && runStateRef.current === "success"
+                            ? "codicon-check"
+                            : "codicon-play";
+
+                    const stateClass = isActiveRunLine
+                        ? runStateRef.current === "running"
+                            ? " statement-run-glyph--running"
+                            : runStateRef.current === "success"
+                              ? " statement-run-glyph--success"
+                              : ""
+                        : "";
+
+                    return {
+                        range: new monaco.Range(
+                            statement.startLine,
+                            1,
+                            statement.startLine,
+                            1,
+                        ),
+                        options: {
+                            isWholeLine: true,
+                            glyphMarginClassName: `statement-run-glyph codicon ${iconClass}${stateClass}`,
+                            glyphMarginHoverMessage: {
+                                value: "Run statement",
+                            },
+                        },
+                    };
+                });
+
+            statementDecorationIdsRef.current = editor.deltaDecorations(
+                statementDecorationIdsRef.current,
+                newDecorations,
+            );
+        };
+
+        refreshDecorationsRef.current = updateStatementRunDecorations;
+
         // Helper function to extract query at cursor position
         const getQueryAtCursor = () => {
             const model = editor.getModel();
@@ -217,7 +432,7 @@ export default function SQLEditor({
             // Priority 1: If there's a selection, use only the selected text
             if (selection && model && !selection.isEmpty()) {
                 const selectedText = model.getValueInRange(selection);
-                onRunQuery(selectedText.trim(), {
+                triggerRun(selectedText.trim(), {
                     isSelection: true,
                     selectionStartLineNumber: selection.startLineNumber,
                 });
@@ -225,10 +440,50 @@ export default function SQLEditor({
                 // Priority 2: Find and run the query at cursor position
                 const queryAtCursor = getQueryAtCursor();
                 if (queryAtCursor) {
-                    onRunQuery(queryAtCursor, { isSelection: false });
+                    triggerRun(queryAtCursor, {
+                        isSelection: false,
+                    });
                 }
             }
         });
+
+        mouseDownDisposableRef.current = editor.onMouseDown((event) => {
+            const isGutterTarget =
+                event.target.type ===
+                    monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN ||
+                event.target.type ===
+                    monaco.editor.MouseTargetType.GUTTER_LINE_DECORATIONS ||
+                event.target.type ===
+                    monaco.editor.MouseTargetType.GUTTER_LINE_NUMBERS;
+
+            if (!isGutterTarget || !isStatementGlyphClick(event)) {
+                return;
+            }
+
+            const clickedLine = event.target.position?.lineNumber;
+            if (!clickedLine) return;
+
+            const statement = statementsRef.current.find(
+                (item) =>
+                    clickedLine >= item.startLine &&
+                    clickedLine <= item.endLine,
+            );
+
+            if (!statement) return;
+
+            triggerRun(statement.text, {
+                isSelection: false,
+                selectionStartLineNumber: statement.startLine,
+            });
+        });
+
+        contentChangeDisposableRef.current = editor.onDidChangeModelContent(
+            () => {
+                updateStatementRunDecorations();
+            },
+        );
+
+        updateStatementRunDecorations();
 
         // Register completion provider on mount
         registerCompletionProvider(monaco);
@@ -242,13 +497,40 @@ export default function SQLEditor({
         // Re-register completion provider with updated data
         registerCompletionProvider(monaco);
 
-        // Cleanup on unmount
+        // Cleanup only completion provider for this re-registration cycle
         return () => {
             if (completionProviderRef.current) {
                 completionProviderRef.current.dispose();
             }
         };
     }, [registerCompletionProvider]);
+
+    useEffect(() => {
+        return () => {
+            if (contentChangeDisposableRef.current) {
+                contentChangeDisposableRef.current.dispose();
+                contentChangeDisposableRef.current = null;
+            }
+
+            if (mouseDownDisposableRef.current) {
+                mouseDownDisposableRef.current.dispose();
+                mouseDownDisposableRef.current = null;
+            }
+
+            if (successTimeoutRef.current) {
+                clearTimeout(successTimeoutRef.current);
+                successTimeoutRef.current = null;
+            }
+
+            const editor = editorRef.current;
+            if (editor) {
+                editor.deltaDecorations(statementDecorationIdsRef.current, []);
+            }
+            statementDecorationIdsRef.current = [];
+            statementsRef.current = [];
+            refreshDecorationsRef.current = null;
+        };
+    }, []);
 
     return (
         <Editor
@@ -264,6 +546,7 @@ export default function SQLEditor({
             onMount={handleEditorDidMount}
             options={{
                 minimap: { enabled: false },
+                glyphMargin: true,
                 fontSize: 12,
                 fontFamily:
                     "'SF Mono', 'Monaco', 'Inconsolata', 'Consolas', monospace",

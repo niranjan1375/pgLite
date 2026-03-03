@@ -127,3 +127,68 @@ button {
 * {
     border-radius: 0 !important;
 }
+
+.monaco-editor .margin-view-overlays .cgmr.statement-run-glyph,
+.monaco-editor .margin-view-overlays .statement-run-glyph {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+    color: #ffffff !important;
+    background: rgba(34, 197, 94, 0.95);
+    box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.95) inset;
+    opacity: 1;
+}
+
+.monaco-editor .margin-view-overlays .statement-run-glyph::before {
+    font-size: 12px !important;
+    font-weight: 700;
+}
+
+.monaco-editor .margin-view-overlays .statement-run-glyph:hover {
+    background: rgba(16, 185, 129, 1);
+}
+
+@keyframes statementRunSpin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes statementRunPulse {
+    0% {
+        transform: scale(1);
+        filter: brightness(1);
+    }
+    50% {
+        transform: scale(1.14);
+        filter: brightness(1.25);
+    }
+    100% {
+        transform: scale(1);
+        filter: brightness(1);
+    }
+}
+
+.monaco-editor .margin-view-overlays .statement-run-glyph--running {
+    background: rgba(59, 130, 246, 0.95) !important;
+    box-shadow: 0 0 0 1px rgba(59, 130, 246, 1) inset;
+}
+
+.monaco-editor .margin-view-overlays .statement-run-glyph--running::before {
+    animation: statementRunSpin 0.75s linear infinite;
+}
+
+.monaco-editor .margin-view-overlays .statement-run-glyph--success {
+    background: rgba(34, 197, 94, 1) !important;
+    box-shadow: 0 0 0 1px rgba(22, 163, 74, 1) inset;
+}
+
+.monaco-editor .margin-view-overlays .statement-run-glyph--success::before {
+    animation: statementRunPulse 0.45s ease-out;
+}

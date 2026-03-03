@@ -903,6 +903,7 @@ export default function Home() {
                                                 val || "",
                                             );
                                         }}
+                                        isExecuting={loading}
                                         onRunQuery={(
                                             queryToRun,
                                             executionContext,
