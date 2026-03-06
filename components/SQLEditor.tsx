@@ -59,6 +59,35 @@ interface SQLEditorProps {
     databases?: string[]; // Available databases for workspace mode autocomplete
 }
 
+function extractEditorVariables(
+    model: monacoEditor.editor.ITextModel,
+): string[] {
+    const variableNames: string[] = [];
+    const variableNameSet = new Set<string>();
+    const totalLines = model.getLineCount();
+
+    for (let line = 1; line <= totalLines; line++) {
+        const lineContent = model.getLineContent(line).trim();
+
+        if (!lineContent.startsWith("@")) {
+            break;
+        }
+
+        const match = lineContent.match(/^@([A-Za-z_][A-Za-z0-9_]*)\s*=/);
+        if (!match) {
+            continue;
+        }
+
+        const variableName = match[1];
+        if (!variableNameSet.has(variableName)) {
+            variableNameSet.add(variableName);
+            variableNames.push(variableName);
+        }
+    }
+
+    return variableNames;
+}
+
 function getStatements(model: monacoEditor.editor.ITextModel): StatementInfo[] {
     const statements: StatementInfo[] = [];
 
@@ -218,13 +247,14 @@ export default function SQLEditor({
             // Register new completion provider
             completionProviderRef.current =
                 monaco.languages.registerCompletionItemProvider("sql", {
-                    triggerCharacters: [".", " "], // Trigger on dot and space
+                    triggerCharacters: [".", " ", "@"], // Trigger on dot, space, and variable prefix
                     provideCompletionItems: (
                         model: monacoEditor.editor.ITextModel,
                         position: monacoEditor.Position,
                     ) => {
                         const suggestions: monacoEditor.languages.CompletionItem[] =
                             [];
+                        const editorVariables = extractEditorVariables(model);
                         const wordInfo = model.getWordUntilPosition(position);
                         const range = {
                             startLineNumber: position.lineNumber,
@@ -232,6 +262,34 @@ export default function SQLEditor({
                             startColumn: wordInfo.startColumn,
                             endColumn: position.column,
                         };
+
+                        // Add workspace variable suggestions based on @var = value block at top
+                        editorVariables.forEach((variableName) => {
+                            suggestions.push({
+                                label: `@${variableName}`,
+                                kind: monaco.languages.CompletionItemKind
+                                    .Variable,
+                                insertText: `@${variableName}`,
+                                detail: "Workspace variable",
+                                documentation: `Variable defined in query header: @${variableName} = ...`,
+                                range,
+                                sortText: `0_@${variableName}`,
+                            });
+                        });
+
+                        suggestions.push({
+                            label: "@variable = value",
+                            kind: monaco.languages.CompletionItemKind.Snippet,
+                            insertText: "@${1:variable_name} = ${2:value}",
+                            insertTextRules:
+                                monaco.languages.CompletionItemInsertTextRule
+                                    .InsertAsSnippet,
+                            detail: "Workspace variable definition",
+                            documentation:
+                                "Define variables at the top of the query. Example: @user_id = 123",
+                            range,
+                            sortText: "0_@@snippet",
+                        });
 
                         // Add database name suggestions (for workspace mode)
                         databases.forEach((dbName) => {

@@ -56,6 +56,10 @@ export default function ResultsTable({
         field: string;
         row: Record<string, unknown>;
     } | null>(null);
+    const [expandedRow, setExpandedRow] = useState<Record<
+        string,
+        unknown
+    > | null>(null);
     const [density, setDensity] = useState<Density>("default");
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const resizeStartX = useRef<number>(0);
@@ -272,14 +276,18 @@ export default function ResultsTable({
     // Keyboard shortcuts for modal
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === "Escape" && expandedCell) {
-                setExpandedCell(null);
+            if (e.key === "Escape") {
+                if (expandedRow) {
+                    setExpandedRow(null);
+                } else if (expandedCell) {
+                    setExpandedCell(null);
+                }
             }
         };
 
         document.addEventListener("keydown", handleKeyDown);
         return () => document.removeEventListener("keydown", handleKeyDown);
-    }, [expandedCell]);
+    }, [expandedCell, expandedRow]);
 
     const exportAsCSV = () => {
         if (!result || result.rows.length === 0) return;
@@ -516,8 +524,8 @@ export default function ResultsTable({
                             className="px-3 py-2 text-left text-[11px] uppercase tracking-wider whitespace-nowrap flex-shrink-0"
                             style={{
                                 color: "var(--text-muted)",
-                                width: readOnly ? "80px" : "140px",
-                                minWidth: readOnly ? "80px" : "140px",
+                                width: readOnly ? "130px" : "190px",
+                                minWidth: readOnly ? "130px" : "190px",
                                 borderRight: "1px solid var(--grid-line)",
                             }}
                         >
@@ -613,15 +621,30 @@ export default function ResultsTable({
                                             className="px-2 py-2 flex items-center gap-1 justify-center flex-shrink-0"
                                             style={{
                                                 width: readOnly
-                                                    ? "80px"
-                                                    : "140px",
+                                                    ? "130px"
+                                                    : "190px",
                                                 minWidth: readOnly
-                                                    ? "80px"
-                                                    : "140px",
+                                                    ? "130px"
+                                                    : "190px",
                                                 borderRight:
                                                     "1px solid var(--grid-line)",
                                             }}
                                         >
+                                            <button
+                                                onClick={() =>
+                                                    setExpandedRow(row)
+                                                }
+                                                className="px-2 py-1 rounded border hover:opacity-80 transition-opacity text-[11px] font-medium"
+                                                style={{
+                                                    color: "var(--accent)",
+                                                    borderColor:
+                                                        "var(--border)",
+                                                    background: "var(--panel)",
+                                                }}
+                                                title="View all fields for this row"
+                                            >
+                                                view
+                                            </button>
                                             <button
                                                 onClick={() =>
                                                     copyRowAsJSON(row)
@@ -665,7 +688,9 @@ export default function ResultsTable({
                                             const displayValue =
                                                 value === null
                                                     ? "␀"
-                                                    : String(value);
+                                                    : typeof value === "object"
+                                                      ? JSON.stringify(value)
+                                                      : String(value);
 
                                             return (
                                                 <div
@@ -795,6 +820,143 @@ export default function ResultsTable({
                     </div>
                 </div>
             )}
+
+            {/* Expanded Row Modal */}
+            {expandedRow && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                    style={{ background: "rgba(0, 0, 0, 0.8)" }}
+                    onClick={() => setExpandedRow(null)}
+                >
+                    <div
+                        className="max-w-6xl w-full max-h-[90vh] overflow-auto border rounded-lg shadow-2xl"
+                        style={{
+                            background: "var(--panel)",
+                            borderColor: "var(--border)",
+                            color: "var(--text-primary)",
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div
+                            className="sticky top-0 z-10 px-8 py-5 border-b flex items-center justify-between backdrop-blur-sm"
+                            style={{
+                                background: "var(--panel)",
+                                borderColor: "var(--border)",
+                            }}
+                        >
+                            <div
+                                className="text-[13px] uppercase tracking-wide font-bold"
+                                style={{ color: "var(--text-muted)" }}
+                            >
+                                Row Details • {result?.fields.length || 0}{" "}
+                                fields
+                            </div>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => {
+                                        copyToClipboard(
+                                            JSON.stringify(
+                                                expandedRow,
+                                                null,
+                                                2,
+                                            ),
+                                            "expanded-row",
+                                        );
+                                    }}
+                                    className="px-4 py-2 text-[11px] uppercase border rounded hover:opacity-80 transition-opacity font-semibold"
+                                    style={{
+                                        borderColor: "var(--border)",
+                                        color: "var(--text-secondary)",
+                                    }}
+                                >
+                                    {copiedCell === "expanded-row"
+                                        ? "✓ COPIED"
+                                        : "COPY JSON"}
+                                </button>
+                                <button
+                                    onClick={() => setExpandedRow(null)}
+                                    className="px-4 py-2 text-[11px] uppercase border rounded hover:opacity-70 transition-opacity"
+                                    style={{
+                                        borderColor: "var(--border)",
+                                        color: "var(--text-muted)",
+                                    }}
+                                >
+                                    CLOSE (ESC)
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="p-8">
+                            <div className="space-y-6">
+                                {result?.fields.map((field) => {
+                                    const value = expandedRow[field];
+                                    const isHidden = hiddenColumns.has(field);
+                                    return (
+                                        <div
+                                            key={field}
+                                            className="border rounded-lg p-5"
+                                            style={{
+                                                borderColor: "var(--border)",
+                                                opacity: isHidden ? 0.5 : 1,
+                                                background: "var(--bg)",
+                                            }}
+                                        >
+                                            <div className="flex items-center justify-between gap-4 mb-3">
+                                                <div className="flex items-center gap-3">
+                                                    <div
+                                                        className="text-[13px] font-mono font-bold"
+                                                        style={{
+                                                            color: "var(--accent)",
+                                                        }}
+                                                    >
+                                                        {field}
+                                                    </div>
+                                                    {isHidden && (
+                                                        <span
+                                                            className="text-[9px] px-2 py-1 rounded font-semibold uppercase tracking-wide"
+                                                            style={{
+                                                                background:
+                                                                    "var(--border)",
+                                                                color: "var(--text-muted)",
+                                                            }}
+                                                        >
+                                                            HIDDEN
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <button
+                                                    onClick={() => {
+                                                        const cellValue =
+                                                            value === null
+                                                                ? "NULL"
+                                                                : String(value);
+                                                        copyToClipboard(
+                                                            cellValue,
+                                                            `row-field-${field}`,
+                                                        );
+                                                    }}
+                                                    className="px-3 py-1.5 text-[10px] uppercase border rounded hover:opacity-80 transition-opacity flex-shrink-0 font-semibold"
+                                                    style={{
+                                                        borderColor:
+                                                            "var(--border)",
+                                                        color: "var(--text-secondary)",
+                                                    }}
+                                                >
+                                                    {copiedCell ===
+                                                    `row-field-${field}`
+                                                        ? "✓"
+                                                        : "COPY"}
+                                                </button>
+                                            </div>
+                                            <JSONViewer value={value} />
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -810,65 +972,34 @@ const JSONViewer = memo(({ value }: { value: unknown }) => {
             );
         }
 
-        const valueStr = String(value);
+        // If value is already an object, stringify it directly
+        if (typeof value === "object") {
+            const jsonString = JSON.stringify(value, null, 2);
+            return <div>{jsonString}</div>;
+        }
 
-        // Try to parse and prettify JSON
+        // Try to parse if it's a JSON string
+        const valueStr = String(value);
+        let displayContent = valueStr;
+
         try {
             const parsed = JSON.parse(valueStr);
-            const prettified = JSON.stringify(parsed, null, 2);
-
-            // Simple syntax highlighting with memoized regex
-            return prettified.split("\n").map((line, idx) => {
-                let coloredLine = line;
-                const keyMatch = line.match(/"([^"]+)":/);
-
-                if (keyMatch) {
-                    coloredLine = line.replace(
-                        /"([^"]+)":/,
-                        `<span style="color: #569cd6">"${keyMatch[1]}"</span>:`,
-                    );
-                }
-
-                // String values
-                coloredLine = coloredLine.replace(/"([^"]+)"/g, (match, p1) => {
-                    if (!match.endsWith(":")) {
-                        return `<span style="color: #ce9178">"${p1}"</span>`;
-                    }
-                    return match;
-                });
-
-                // Numbers
-                coloredLine = coloredLine.replace(
-                    /:\s*(\d+\.?\d*)/g,
-                    ': <span style="color: #b5cea8">$1</span>',
-                );
-
-                // Booleans and null
-                coloredLine = coloredLine.replace(
-                    /\b(true|false|null)\b/g,
-                    '<span style="color: #569cd6">$1</span>',
-                );
-
-                return (
-                    <div
-                        key={idx}
-                        dangerouslySetInnerHTML={{ __html: coloredLine }}
-                    />
-                );
-            });
+            displayContent = JSON.stringify(parsed, null, 2);
         } catch {
-            // Not JSON, display as plain text
-            return <div>{valueStr}</div>;
+            // Not JSON, use as-is
         }
+
+        return <div>{displayContent}</div>;
     }, [value]);
 
     return (
         <div
-            className="p-4 text-[13px] font-mono whitespace-pre-wrap break-words border"
+            className="p-5 text-[14px] font-mono whitespace-pre-wrap break-words rounded border"
             style={{
-                background: "var(--bg)",
+                background: "var(--panel)",
                 borderColor: "var(--border)",
                 color: "var(--text-primary)",
+                lineHeight: "1.6",
             }}
         >
             {content}
