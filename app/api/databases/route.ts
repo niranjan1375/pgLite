@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPool } from "@/lib/db";
+import { getDefaultEnvironment } from "@/lib/environments";
 
 export async function GET(req: NextRequest) {
     let pool;
     try {
         const searchParams = req.nextUrl.searchParams;
-        const environment = searchParams.get("environment") || "loadtest";
+        const environment =
+            searchParams.get("environment") || getDefaultEnvironment();
 
         pool = createPool(environment);
         const result = await pool.query(`

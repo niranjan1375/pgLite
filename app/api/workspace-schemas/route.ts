@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPool } from "@/lib/db";
+import { getDefaultEnvironment } from "@/lib/environments";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +34,8 @@ interface SchemaInfo {
 export async function GET(req: NextRequest) {
     try {
         const searchParams = req.nextUrl.searchParams;
-        const environment = searchParams.get("environment") || "loadtest";
+        const environment =
+            searchParams.get("environment") || getDefaultEnvironment();
         const forceRefresh = searchParams.get("refresh") === "1";
 
         if (!forceRefresh) {

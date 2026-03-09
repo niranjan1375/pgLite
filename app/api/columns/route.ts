@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPool } from "@/lib/db";
+import { getDefaultEnvironment } from "@/lib/environments";
 
 export async function POST(req: NextRequest) {
     let pool = null;
@@ -7,7 +8,8 @@ export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
         const database: string = body?.database;
-        const environment: string = body?.environment || "loadtest";
+        const environment: string =
+            body?.environment || getDefaultEnvironment();
 
         if (!database) {
             return NextResponse.json(

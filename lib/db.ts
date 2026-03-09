@@ -1,5 +1,5 @@
 import { Pool } from "pg";
-import { environments } from "./environments";
+import { environments, getDefaultEnvironment } from "./environments";
 
 /**
  * Creates a new PostgreSQL connection pool for the specified environment and database.
@@ -10,16 +10,17 @@ import { environments } from "./environments";
  * @returns A new Pool instance
  */
 export function createPool(
-    environment: string = "loadtest",
+    environment: string = getDefaultEnvironment(),
     database?: string,
 ): Pool {
+    const defaultEnvironment = getDefaultEnvironment();
     const envConfig = environments[environment];
 
     if (!envConfig) {
         console.warn(
-            `Environment "${environment}" not found, using loadtest as fallback`,
+            `Environment "${environment}" not found, using ${defaultEnvironment} as fallback`,
         );
-        return createPool("loadtest", database);
+        return createPool(defaultEnvironment, database);
     }
 
     // Temporary debug logging
@@ -51,6 +52,6 @@ export function createPool(
 }
 
 // Default pool for backward compatibility (not recommended for new code)
-const pool = createPool("loadtest");
+const pool = createPool(getDefaultEnvironment());
 
 export default pool;

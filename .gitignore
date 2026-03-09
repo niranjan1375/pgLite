@@ -43,3 +43,6 @@ next-env.d.ts
 
 
 .pgconsole/*
+
+# local credential notes
+dbDetails.local.txt

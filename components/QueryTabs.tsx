@@ -7,7 +7,6 @@ import {
     useImperativeHandle,
     useRef,
 } from "react";
-import { environments } from "@/lib/environments";
 import { getEnvironmentColor } from "@/lib/design-system";
 import { useKeyboard } from "@/hooks/useKeyboard";
 
@@ -42,12 +41,17 @@ interface QueryTabsProps {
     globalDatabase: string;
     globalEnvironment: string;
     databases: string[];
+    environmentNames?: Record<string, string>;
     onTabChange?: (tab: QueryTab) => void;
 }
 
 // Helper to generate dynamic tab name
-function generateTabName(environment: string, database: string): string {
-    const envName = environments[environment]?.name || environment;
+function generateTabName(
+    environment: string,
+    database: string,
+    environmentNames: Record<string, string>,
+): string {
+    const envName = environmentNames[environment] || environment;
     const shortEnv = envName.split(" ")[0]; // Take first word (Loadtest, Sandbox, etc.)
     const shortDb = database.split("_")[0]; // Take first part before underscore
     return `${shortEnv} • ${shortDb}`;
@@ -128,7 +132,13 @@ function saveActiveTabId(tabId: string) {
 }
 
 const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
-    { globalDatabase, globalEnvironment, databases, onTabChange },
+    {
+        globalDatabase,
+        globalEnvironment,
+        databases,
+        environmentNames = {},
+        onTabChange,
+    },
     ref,
 ) {
     const [tabs, setTabs] = useState<QueryTab[]>(() =>
@@ -260,6 +270,7 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
                                 updatedTab.name = generateTabName(
                                     environment,
                                     t.database,
+                                    environmentNames,
                                 );
                             }
                             return updatedTab;
@@ -278,6 +289,7 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
                                 updatedTab.name = generateTabName(
                                     t.environment,
                                     database,
+                                    environmentNames,
                                 );
                             }
                             return updatedTab;
@@ -335,14 +347,18 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
                 );
             },
         }),
-        [activeTabId, activeTab, tabs, nextTabId],
+        [activeTabId, activeTab, tabs, nextTabId, environmentNames],
     );
 
     // Update tab name when environment or database changes
     const updateTabName = (tab: QueryTab) => {
         // If tab has default name (Playground X), update it dynamically
         if (tab.name.startsWith("Playground")) {
-            return generateTabName(tab.environment, tab.database);
+            return generateTabName(
+                tab.environment,
+                tab.database,
+                environmentNames,
+            );
         }
         // Otherwise keep custom name
         return tab.name;
@@ -408,7 +424,11 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
                               ...t,
                               database: databases[0],
                               name: t.name.startsWith("Playground ")
-                                  ? generateTabName(t.environment, databases[0])
+                                  ? generateTabName(
+                                        t.environment,
+                                        databases[0],
+                                        environmentNames,
+                                    )
                                   : t.name,
                           }
                         : t,
@@ -416,7 +436,7 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
             );
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [databases.length, activeTab?.database, activeTabId]);
+    }, [databases.length, activeTab?.database, activeTabId, environmentNames]);
 
     return (
         <div

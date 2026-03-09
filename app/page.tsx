@@ -17,7 +17,6 @@ import EnvironmentStrip from "@/components/EnvironmentStrip";
 import KeyboardHelp from "@/components/KeyboardHelp";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { type QueryTab, type QueryTabsRef } from "@/components/QueryTabs";
-import { getAllEnvironments } from "@/lib/environments";
 import {
     extractVariables,
     selectionOverlapsVariableBlock,
@@ -69,6 +68,12 @@ interface WorkspaceSchema {
             columns: Column[];
         }[];
     }[];
+}
+
+interface EnvironmentSummary {
+    id: string;
+    name: string;
+    requiresVPN: boolean;
 }
 
 const WORKSPACE_SCHEMA_CACHE_TTL_MS = 120_000;
@@ -123,6 +128,13 @@ export default function Home() {
     } | null>(null);
     const [templates, setTemplates] = useState<string[]>([]);
     const [loadingTemplates, setLoadingTemplates] = useState(false);
+    const [availableEnvironmentIds, setAvailableEnvironmentIds] = useState<
+        string[]
+    >([]);
+    const [environmentNamesById, setEnvironmentNamesById] = useState<
+        Record<string, string>
+    >({});
+    const [defaultEnvironment, setDefaultEnvironment] = useState<string>("dev");
 
     // Use refs to track in-flight requests and cache
     const databasesCacheRef = useRef<Record<string, string[]>>({});
@@ -136,6 +148,40 @@ export default function Home() {
     const workspaceSchemasInFlightRef = useRef<
         Partial<Record<string, Promise<WorkspaceSchema[]>>>
     >({});
+
+    useEffect(() => {
+        const fetchEnvironments = async () => {
+            try {
+                const res = await fetch("/api/environments", {
+                    cache: "no-store",
+                });
+                const data = await res.json();
+
+                const envs: EnvironmentSummary[] = Array.isArray(
+                    data.environments,
+                )
+                    ? data.environments
+                    : [];
+
+                if (envs.length === 0) return;
+
+                setAvailableEnvironmentIds(envs.map((env) => env.id));
+                setEnvironmentNamesById(
+                    envs.reduce<Record<string, string>>((acc, env) => {
+                        acc[env.id] = env.name;
+                        return acc;
+                    }, {}),
+                );
+                if (typeof data.defaultEnvironment === "string") {
+                    setDefaultEnvironment(data.defaultEnvironment);
+                }
+            } catch (err) {
+                console.error("Failed to fetch environments:", err);
+            }
+        };
+
+        fetchEnvironments();
+    }, []);
 
     // Convert workspaceSchemas to tableColumns format for autocomplete
     const editorTableColumns = useMemo(() => {
@@ -346,32 +392,36 @@ export default function Home() {
         }
     }, []);
 
-    const handleTemplateOpen = useCallback(async (name: string) => {
-        try {
-            const res = await fetch(
-                `/api/templates/${encodeURIComponent(name)}`,
-                {
-                    cache: "no-store",
-                },
-            );
-            const data = await res.json();
-            if (!res.ok || data.error) {
-                setError(data.error || "Failed to open template.");
-                return;
-            }
+    const handleTemplateOpen = useCallback(
+        async (name: string) => {
+            try {
+                const res = await fetch(
+                    `/api/templates/${encodeURIComponent(name)}`,
+                    {
+                        cache: "no-store",
+                    },
+                );
+                const data = await res.json();
+                if (!res.ok || data.error) {
+                    setError(data.error || "Failed to open template.");
+                    return;
+                }
 
-            const env =
-                queryTabsRef.current?.getActiveTab()?.environment || "loadtest";
-            queryTabsRef.current?.openWorkspaceTab({
-                name,
-                content: data.content,
-                environment: env,
-            });
-        } catch (err) {
-            console.error("Failed to open template:", err);
-            setError("Failed to open template.");
-        }
-    }, []);
+                const env =
+                    queryTabsRef.current?.getActiveTab()?.environment ||
+                    defaultEnvironment;
+                queryTabsRef.current?.openWorkspaceTab({
+                    name,
+                    content: data.content,
+                    environment: env,
+                });
+            } catch (err) {
+                console.error("Failed to open template:", err);
+                setError("Failed to open template.");
+            }
+        },
+        [defaultEnvironment],
+    );
 
     const handleSaveTemplate = useCallback(async () => {
         const currentTab = queryTabsRef.current?.getActiveTab();
@@ -820,8 +870,9 @@ export default function Home() {
                             ref={queryTabsRef}
                             globalDatabase={activeTab?.database || ""}
                             globalEnvironment={
-                                activeTab?.environment || "loadtest"
+                                activeTab?.environment || defaultEnvironment
                             }
+                            environmentNames={environmentNamesById}
                             databases={
                                 activeTab
                                     ? databasesByEnv[activeTab.environment] ||
@@ -866,7 +917,11 @@ export default function Home() {
                                 environment={activeTab.environment}
                                 database={activeTab.database}
                                 readOnly={activeTab.readOnly}
-                                availableEnvironments={getAllEnvironments()}
+                                availableEnvironments={
+                                    availableEnvironmentIds.length > 0
+                                        ? availableEnvironmentIds
+                                        : [defaultEnvironment]
+                                }
                                 availableDatabases={
                                     databasesByEnv[activeTab.environment] || []
                                 }

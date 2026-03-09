@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPool } from "@/lib/db";
+import { getDefaultEnvironment } from "@/lib/environments";
 
 // Server-side row limit to prevent DoS and memory overflow
 const MAX_ROWS = 10000;
@@ -32,7 +33,8 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const query: string = body?.query?.trim();
         const database: string = body?.database;
-        const environment: string = body?.environment || "loadtest";
+        const environment: string =
+            body?.environment || getDefaultEnvironment();
         const readOnly: boolean = body?.readOnly || false;
 
         if (!query) {
