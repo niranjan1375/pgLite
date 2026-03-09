@@ -1,18 +1,14 @@
-Loadtest Azure:
-postgresql://postgres:VeRdsGa*0*1@vegapay-loadtest-postgres-server.postgres.database.azure.com/support?statusColor=686B6F&env=&name=Loadtest%20Azure&tLSMode=0&usePrivateKey=false&safeModeLevel=0&advancedSafeModeLevel=0&driverVersion=0&lazyload=false
+This file is intentionally sanitized.
 
-sandbox:
-postgresql://postgres:dasdfs213%23323wq@vegapay-sandbox-postgres-server.postgres.database.azure.com/postgres?statusColor=686B6F&env=local&name=sandbox&tLSMode=0&usePrivateKey=false&safeModeLevel=0&advancedSafeModeLevel=0&driverVersion=0&lazyload=false
+Do not store real credentials in tracked files.
+Use `.env.local` for local secrets and keep it out of git.
 
-staging:
-postgresql://postgres:VeRdsGa*0*1@vegapay-staging-postgres-server.postgres.database.azure.com/postgres?statusColor=686B6F&env=local&name=staging&tLSMode=0&usePrivateKey=false&safeModeLevel=0&advancedSafeModeLevel=0&driverVersion=0&lazyload=false
+Example DSN format:
+postgresql://<user>:<password>@<host>/<database>
 
-vegapay uat snapshot
-postgresql://postgres:vboPxcNmBpPn@rds-ssfb-prod-dec-08-2025.cr6ssimwi9q4.ap-south-1.rds.amazonaws.com/card_processor?statusColor=686B6F&env=uat&name=vegapay%20uat%20snapshot&tLSMode=0&usePrivateKey=false&safeModeLevel=0&advancedSafeModeLevel=0&driverVersion=0&lazyload=false
-
-
-vegapay uat 
-postgresql://postgres:VeRdsGa*0*1@vegapay-rds.cr6ssimwi9q4.ap-south-1.rds.amazonaws.com/card_processor?statusColor=686B6F&env=uat&name=vegapay%20uat%20old&tLSMode=0&usePrivateKey=false&safeModeLevel=0&advancedSafeModeLevel=0&driverVersion=0&lazyload=false
-
-unity uat:
-postgresql://postgres:VeRdsGa*0*1@vegapay-unity-prod-db.cdkwy8wyw3a2.ap-south-1.rds.amazonaws.com/card_processor?statusColor=686B6F&env=uat&name=unity%20uat&tLSMode=0&usePrivateKey=false&safeModeLevel=0&advancedSafeModeLevel=0&driverVersion=0&lazyload=false
+Example entries:
+- loadtest: postgresql://<user>:<password>@<host>/<database>
+- sandbox: postgresql://<user>:<password>@<host>/<database>
+- staging: postgresql://<user>:<password>@<host>/<database>
+- prod-us: postgresql://<user>:<password>@<host>/<database>
+- prod-eu: postgresql://<user>:<password>@<host>/<database>
