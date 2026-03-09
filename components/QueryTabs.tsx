@@ -447,6 +447,7 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
                             paddingLeft: "12px",
                             paddingRight: "12px",
                             borderRight: "1px solid var(--border)",
+                            borderRadius: "20px",
                         }}
                         title="Double-click to rename"
                     >
@@ -471,6 +472,7 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
                                     style={{
                                         color: "var(--accent)",
                                         borderColor: "var(--accent)",
+                                        borderRadius: "20px",
                                     }}
                                 >
                                     WS

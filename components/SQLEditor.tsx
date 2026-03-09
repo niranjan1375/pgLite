@@ -102,29 +102,63 @@ function getStatements(model: monacoEditor.editor.ITextModel): StatementInfo[] {
         break;
     }
 
+    let currentStatement = "";
+    let currentStartLine: number | null = null;
+
+    const pushStatement = (endLine: number) => {
+        const trimmed = currentStatement.trim();
+        if (!trimmed || currentStartLine === null) {
+            currentStatement = "";
+            currentStartLine = null;
+            return;
+        }
+
+        if (!isRunnableSqlStatement(trimmed)) {
+            currentStatement = "";
+            currentStartLine = null;
+            return;
+        }
+
+        statements.push({
+            text: trimmed,
+            startLine: currentStartLine,
+            endLine,
+        });
+
+        currentStatement = "";
+        currentStartLine = null;
+    };
+
     for (let line = variableBlockEndLine + 1; line <= totalLines; line++) {
         const lineContent = model.getLineContent(line);
-        if (!lineContent.trim()) {
-            continue;
+
+        if (currentStartLine === null && lineContent.trim()) {
+            currentStartLine = line;
         }
 
-        const lineParts = lineContent.split(";");
-        for (const part of lineParts) {
-            const trimmedPart = part.trim();
-            if (!trimmedPart) {
+        let segmentStart = 0;
+        for (let index = 0; index < lineContent.length; index++) {
+            if (lineContent[index] !== ";") {
                 continue;
             }
 
-            if (!isRunnableSqlStatement(trimmedPart)) {
-                continue;
-            }
+            currentStatement += lineContent.slice(segmentStart, index);
+            pushStatement(line);
+            segmentStart = index + 1;
 
-            statements.push({
-                text: trimmedPart,
-                startLine: line,
-                endLine: line,
-            });
+            if (lineContent.slice(segmentStart).trim()) {
+                currentStartLine = line;
+            }
         }
+
+        currentStatement += lineContent.slice(segmentStart);
+        if (line < totalLines) {
+            currentStatement += "\n";
+        }
+    }
+
+    if (currentStatement.trim()) {
+        pushStatement(totalLines);
     }
 
     return statements;
@@ -457,38 +491,14 @@ export default function SQLEditor({
             const position = editor.getPosition();
             if (!position) return null;
 
-            const fullText = model.getValue();
-            const cursorOffset = model.getOffsetAt(position);
+            const statements = getStatements(model);
+            const statementAtCursor = statements.find(
+                (statement) =>
+                    position.lineNumber >= statement.startLine &&
+                    position.lineNumber <= statement.endLine,
+            );
 
-            // Split by semicolon to get individual queries
-            const queries: Array<{
-                query: string;
-                start: number;
-                end: number;
-            }> = [];
-            let currentStart = 0;
-
-            // Parse queries separated by semicolons
-            const parts = fullText.split(";");
-            parts.forEach((part) => {
-                const query = part.trim();
-                if (query) {
-                    const start = currentStart;
-                    const end = currentStart + part.length;
-                    queries.push({ query, start, end });
-                }
-                currentStart += part.length + 1; // +1 for semicolon
-            });
-
-            // Find which query contains the cursor
-            for (const { query, start, end } of queries) {
-                if (cursorOffset >= start && cursorOffset <= end) {
-                    return query;
-                }
-            }
-
-            // If no semicolon-separated query found, return entire content
-            return fullText.trim() || null;
+            return statementAtCursor?.text ?? null;
         };
 
         // Add Cmd/Ctrl+Enter to run query
