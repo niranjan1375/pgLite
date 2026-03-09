@@ -2,6 +2,8 @@
 
 **Priority**: P0 (Critical)  
 **Status**: Open  
+**Owner**: Unassigned  
+**Pre-Ship**: Yes  
 **Created**: 2026-02-27  
 **Effort**: 30 minutes
 

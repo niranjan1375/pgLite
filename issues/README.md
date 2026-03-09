@@ -31,6 +31,27 @@
 **Risk**: Runaway queries lock database indefinitely  
 **Effort**: 30 minutes
 
+### [P0-004] Missing API Authentication & Authorization
+
+**File**: `issues/P0-004-api-authentication.md`  
+**Status**: Open  
+**Risk**: Unauthenticated SQL and schema access  
+**Effort**: 1-2 days
+
+### [P0-005] Workspace Query Connection Leak
+
+**File**: `issues/P0-005-workspace-query-connection-leak.md`  
+**Status**: Open  
+**Risk**: Database connection exhaustion  
+**Effort**: 4-6 hours
+
+### [P0-006] TLS Certificate Verification Disabled
+
+**File**: `issues/P0-006-tls-verification-disabled.md`  
+**Status**: Open  
+**Risk**: MITM exposure and compliance risk  
+**Effort**: 2-4 hours
+
 ---
 
 ## P1 - High (Should Fix)
@@ -55,6 +76,34 @@
 **Status**: Open  
 **Risk**: Cannot stop long-running queries  
 **Effort**: 3 hours
+
+### [P1-004] Missing Rate Limiting & Abuse Controls
+
+**File**: `issues/P1-004-missing-rate-limiting.md`  
+**Status**: Open  
+**Risk**: Query flood / denial of service  
+**Effort**: 1 day
+
+### [P1-005] Workspace Query Missing Result Size Guard
+
+**File**: `issues/P1-005-workspace-result-limit-missing.md`  
+**Status**: Open  
+**Risk**: Memory pressure and browser/API instability  
+**Effort**: 2-4 hours
+
+### [P1-006] Sensitive Debug Logging in Runtime Paths
+
+**File**: `issues/P1-006-debug-log-sanitization.md`  
+**Status**: Open  
+**Risk**: Sensitive hints leaked to logs  
+**Effort**: 2-3 hours
+
+### [P1-007] Static Environment Registry Blocks Multi-Tenant Growth
+
+**File**: `issues/P1-007-dynamic-environment-registry.md`  
+**Status**: Open  
+**Risk**: Cannot add/remove/rename environments without redeploy  
+**Effort**: 2-4 days
 
 ---
 
@@ -85,11 +134,11 @@
 
 ## Quick Stats
 
-- **Total Issues**: 9
-- **P0 (Critical)**: 1 open, 2 fixed
-- **P1 (High)**: 3 open
+- **Total Issues**: 16
+- **P0 (Critical)**: 4 open, 2 fixed
+- **P1 (High)**: 7 open
 - **P2 (Medium)**: 3 open
-- **Estimated Remaining Effort**: ~1.5 weeks
+- **Estimated Remaining Effort**: ~3 weeks
 
 ---
 

@@ -73,6 +73,27 @@ A minimal full-stack PostgreSQL web admin tool built with Next.js (App Router), 
 
 3. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
+## Security Hygiene
+
+- Never commit real credentials or DSNs to tracked files.
+- Use `.env.local` (ignored by git) for local secrets.
+- `dbDetails.txt` is sanitized and safe-to-commit only.
+- Use `dbDetails.local.example.txt` as template and keep real values in `dbDetails.local.txt`.
+
+## Credentials Source
+
+pgLite now supports loading environment credentials from a local file:
+
+- Path: `.pgconsole/credentials.json`
+- Structure reference: `credentials.example.json`
+- Full format details: `docs/CREDENTIALS_FILE_FORMAT.md`
+
+Environment loading order:
+
+1. `.pgconsole/credentials.json` (or `PGLITE_CREDENTIALS_FILE`)
+2. `PGLITE_ENVIRONMENTS_JSON`
+3. Legacy env variables (`LOADTEST_*`, `SANDBOX_*`, etc.)
+
 ## API
 
 ### `POST /api/query`

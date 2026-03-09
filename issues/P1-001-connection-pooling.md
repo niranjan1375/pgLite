@@ -2,6 +2,8 @@
 
 **Priority**: P1 (High)  
 **Status**: Open  
+**Owner**: Unassigned  
+**Pre-Ship**: Yes  
 **Created**: 2026-02-27  
 **Effort**: 4 hours
 
