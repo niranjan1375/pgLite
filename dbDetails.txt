@@ -1,0 +1,14 @@
+This file is intentionally sanitized.
+
+Do not store real credentials in tracked files.
+Use `.env.local` for local secrets and keep it out of git.
+
+Example DSN format:
+postgresql://<user>:<password>@<host>/<database>
+
+Example entries:
+- loadtest: postgresql://<user>:<password>@<host>/<database>
+- sandbox: postgresql://<user>:<password>@<host>/<database>
+- staging: postgresql://<user>:<password>@<host>/<database>
+- prod-us: postgresql://<user>:<password>@<host>/<database>
+- prod-eu: postgresql://<user>:<password>@<host>/<database>

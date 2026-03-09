@@ -1,0 +1,9 @@
+# Local-only DB notes (example)
+# Copy to dbDetails.local.txt and keep real credentials there.
+# Never commit dbDetails.local.txt.
+
+loadtest=postgresql://<user>:<password>@<host>/<database>
+sandbox=postgresql://<user>:<password>@<host>/<database>
+staging=postgresql://<user>:<password>@<host>/<database>
+prod-us=postgresql://<user>:<password>@<host>/<database>
+prod-eu=postgresql://<user>:<password>@<host>/<database>

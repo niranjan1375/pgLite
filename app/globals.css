@@ -1,0 +1,194 @@
+@import "tailwindcss";
+
+/**
+ * Brutal Hacker Minimal Design System
+ * No softness. Sharp edges. High contrast. Monospace everything.
+ */
+
+:root {
+    /* Base Colors */
+    --bg: #0b0f14;
+    --panel: #11161d;
+    --border: #1f2630;
+    --text-primary: #e6edf3;
+    --text-muted: #8b949e;
+
+    /* Accent */
+    --accent: #22c55e;
+    --accent-hover: #16a34a;
+
+    /* Environment Colors */
+    --env-dev: #10b981;
+    --env-staging: #f59e0b;
+    --env-prod: #ef4444;
+
+    /* Status */
+    --error: #ef4444;
+    --warning: #f59e0b;
+    --success: #22c55e;
+
+    /* Grid */
+    --grid-line: #1a1f28;
+
+    /* Layout */
+    --activity-bar: 40px;
+    --status-bar: 26px;
+    --row-height: 32px;
+    --border-width: 1px;
+
+    /* Typography - Full Monospace */
+    --font-mono:
+        "SF Mono", "Monaco", "Inconsolata", "Fira Mono", "Droid Sans Mono",
+        "Source Code Pro", monospace;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.5;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Subtle scanline grid background */
+body::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 1px,
+        rgba(26, 31, 40, 0.3) 1px,
+        rgba(26, 31, 40, 0.3) 2px
+    );
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.15;
+}
+
+/* Sharp scrollbars */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border: none;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+}
+
+/* Remove all focus outlines, replace with sharp borders */
+*:focus {
+    outline: none;
+}
+
+*:focus-visible {
+    outline: 1px solid var(--accent);
+    outline-offset: -1px;
+}
+
+/* Sharp selection */
+::selection {
+    background: var(--accent);
+    color: var(--bg);
+}
+
+/* Monospace inputs */
+input,
+textarea,
+select,
+button {
+    font-family: var(--font-mono);
+    font-size: 13px;
+}
+
+/* No rounded corners anywhere */
+* {
+    border-radius: 0 !important;
+}
+
+.monaco-editor .margin-view-overlays .cgmr.statement-run-glyph,
+.monaco-editor .margin-view-overlays .statement-run-glyph {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+    color: #ffffff !important;
+    background: rgba(34, 197, 94, 0.95);
+    box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.95) inset;
+    opacity: 1;
+}
+
+.monaco-editor .margin-view-overlays .statement-run-glyph::before {
+    font-size: 12px !important;
+    font-weight: 700;
+}
+
+.monaco-editor .margin-view-overlays .statement-run-glyph:hover {
+    background: rgba(16, 185, 129, 1);
+}
+
+@keyframes statementRunSpin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes statementRunPulse {
+    0% {
+        transform: scale(1);
+        filter: brightness(1);
+    }
+    50% {
+        transform: scale(1.14);
+        filter: brightness(1.25);
+    }
+    100% {
+        transform: scale(1);
+        filter: brightness(1);
+    }
+}
+
+.monaco-editor .margin-view-overlays .statement-run-glyph--running {
+    background: rgba(59, 130, 246, 0.95) !important;
+    box-shadow: 0 0 0 1px rgba(59, 130, 246, 1) inset;
+}
+
+.monaco-editor .margin-view-overlays .statement-run-glyph--running::before {
+    animation: statementRunSpin 0.75s linear infinite;
+}
+
+.monaco-editor .margin-view-overlays .statement-run-glyph--success {
+    background: rgba(34, 197, 94, 1) !important;
+    box-shadow: 0 0 0 1px rgba(22, 163, 74, 1) inset;
+}
+
+.monaco-editor .margin-view-overlays .statement-run-glyph--success::before {
+    animation: statementRunPulse 0.45s ease-out;
+}
