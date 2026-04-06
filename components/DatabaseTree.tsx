@@ -12,6 +12,7 @@ interface Table {
     schema: string;
     name: string;
     database?: string; // For workspace mode
+    primaryKeys?: string[];
 }
 
 interface WorkspaceSchema {
@@ -20,6 +21,7 @@ interface WorkspaceSchema {
         schema: string;
         tables: {
             name: string;
+            primaryKeys?: string[];
             columns: Column[];
         }[];
     }[];
@@ -28,6 +30,7 @@ interface WorkspaceSchema {
 interface DatabaseTreeProps {
     selectedDatabase: string;
     tableColumns: Record<string, Column[]>;
+    primaryKeysByTable?: Record<string, string[]>;
     onTablePreview: (table: Table) => void;
     templates?: string[];
     templatesLoading?: boolean;
@@ -41,6 +44,7 @@ interface DatabaseTreeProps {
 export default function DatabaseTree({
     selectedDatabase,
     tableColumns,
+    primaryKeysByTable = {},
     onTablePreview,
     templates = [],
     templatesLoading = false,
@@ -165,11 +169,15 @@ export default function DatabaseTree({
                 if (!grouped[schema]) {
                     grouped[schema] = [];
                 }
-                grouped[schema].push({ schema, name });
+                grouped[schema].push({
+                    schema,
+                    name,
+                    primaryKeys: primaryKeysByTable[tableKey] || [],
+                });
             });
         }
         return grouped;
-    }, [workspaceMode, tableColumns]);
+    }, [workspaceMode, tableColumns, primaryKeysByTable]);
 
     const filteredWorkspaceSchemas = useMemo(() => {
         if (!workspaceMode || !normalizedSearch) return workspaceSchemas;
@@ -641,6 +649,8 @@ export default function DatabaseTree({
                                                                                             name: tableInfo.name,
                                                                                             database:
                                                                                                 dbInfo.database,
+                                                                                            primaryKeys:
+                                                                                                tableInfo.primaryKeys,
                                                                                         },
                                                                                     )
                                                                                 }
@@ -679,6 +689,23 @@ export default function DatabaseTree({
                                                                                         tableInfo.name
                                                                                     }
                                                                                 </span>
+                                                                                {tableInfo.primaryKeys &&
+                                                                                    tableInfo
+                                                                                        .primaryKeys
+                                                                                        .length >
+                                                                                        0 && (
+                                                                                        <span
+                                                                                            className="text-[9px] px-1 border rounded"
+                                                                                            style={{
+                                                                                                color: "var(--warning)",
+                                                                                                borderColor:
+                                                                                                    "var(--warning)",
+                                                                                            }}
+                                                                                            title={`Primary key: ${tableInfo.primaryKeys.join(", ")}`}
+                                                                                        >
+                                                                                            PK
+                                                                                        </span>
+                                                                                    )}
                                                                                 <span
                                                                                     className="text-[10px] flex-shrink-0 ml-auto"
                                                                                     style={{
@@ -743,6 +770,20 @@ export default function DatabaseTree({
                                                                                                         col.name
                                                                                                     }
                                                                                                 </span>
+                                                                                                {tableInfo.primaryKeys?.includes(
+                                                                                                    col.name,
+                                                                                                ) && (
+                                                                                                    <span
+                                                                                                        className="text-[9px] px-1 border rounded"
+                                                                                                        style={{
+                                                                                                            color: "var(--warning)",
+                                                                                                            borderColor:
+                                                                                                                "var(--warning)",
+                                                                                                        }}
+                                                                                                    >
+                                                                                                        PK
+                                                                                                    </span>
+                                                                                                )}
                                                                                             </span>
                                                                                             <span
                                                                                                 className="text-[10px] flex-shrink-0"
@@ -922,6 +963,23 @@ export default function DatabaseTree({
                                                             <span className="truncate">
                                                                 {table.name}
                                                             </span>
+                                                            {table.primaryKeys &&
+                                                                table
+                                                                    .primaryKeys
+                                                                    .length >
+                                                                    0 && (
+                                                                    <span
+                                                                        className="text-[9px] px-1 border rounded"
+                                                                        style={{
+                                                                            color: "var(--warning)",
+                                                                            borderColor:
+                                                                                "var(--warning)",
+                                                                        }}
+                                                                        title={`Primary key: ${table.primaryKeys.join(", ")}`}
+                                                                    >
+                                                                        PK
+                                                                    </span>
+                                                                )}
                                                             <span
                                                                 className="text-[10px] flex-shrink-0 ml-auto"
                                                                 style={{
@@ -979,6 +1037,20 @@ export default function DatabaseTree({
                                                                                     col.name
                                                                                 }
                                                                             </span>
+                                                                            {table.primaryKeys?.includes(
+                                                                                col.name,
+                                                                            ) && (
+                                                                                <span
+                                                                                    className="text-[9px] px-1 border rounded"
+                                                                                    style={{
+                                                                                        color: "var(--warning)",
+                                                                                        borderColor:
+                                                                                            "var(--warning)",
+                                                                                    }}
+                                                                                >
+                                                                                    PK
+                                                                                </span>
+                                                                            )}
                                                                         </span>
                                                                         <span
                                                                             className="text-[10px] flex-shrink-0"

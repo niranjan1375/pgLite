@@ -21,7 +21,6 @@ export default function StatusBar({
     latency,
     connected,
 }: StatusBarProps) {
-    console.log("🚀 ~ environment:", environment);
     const envColor = getEnvironmentColor(environment);
     const isProd = environment.includes("uat") || environment.includes("prod");
 

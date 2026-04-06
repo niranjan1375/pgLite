@@ -14,12 +14,36 @@ interface QueryResult {
     fields: string[];
 }
 
+interface TableViewState {
+    page: number;
+    pageSize: number;
+    totalRows: number;
+    totalPages: number;
+    sortColumn: string | null;
+    sortDirection: "asc" | "desc";
+    searchQuery: string;
+}
+
 interface ResultsTableProps {
     result: QueryResult | null;
     error: string | null;
     loading: boolean;
     readOnly?: boolean;
     tableName?: string;
+    tableView?: TableViewState | null;
+    onTableViewChange?: (
+        updates: Partial<
+            Pick<
+                TableViewState,
+                | "page"
+                | "pageSize"
+                | "sortColumn"
+                | "sortDirection"
+                | "searchQuery"
+            >
+        >,
+    ) => void;
+    onRefreshTableView?: () => void;
     onDeleteRow?: (row: Record<string, unknown>) => void;
 }
 
@@ -39,6 +63,10 @@ export default function ResultsTable({
     error,
     loading,
     readOnly = true,
+    tableName,
+    tableView,
+    onTableViewChange,
+    onRefreshTableView,
     onDeleteRow,
 }: ResultsTableProps) {
     const [copiedCell, setCopiedCell] = useState<string | null>(null);
@@ -65,15 +93,17 @@ export default function ResultsTable({
     const resizeStartX = useRef<number>(0);
     const resizeStartWidth = useRef<number>(0);
     const resizeObserverRef = useRef<ResizeObserver | null>(null);
+    const searchDebounceRef = useRef<number | null>(null);
+
+    const hasTableViewControls = Boolean(tableView && onTableViewChange);
 
     useEffect(() => {
-        console.log(
-            "ResultsTable props - readOnly:",
-            readOnly,
-            "hasDeleteHandler:",
-            !!onDeleteRow,
-        );
-    }, [readOnly, onDeleteRow]);
+        return () => {
+            if (searchDebounceRef.current !== null) {
+                window.clearTimeout(searchDebounceRef.current);
+            }
+        };
+    }, []);
 
     // Virtual scrolling constants
     const ROW_HEIGHT = density === "compact" ? 32 : 41;
@@ -96,9 +126,19 @@ export default function ResultsTable({
         return result.fields.filter((field) => !hiddenColumns.has(field));
     }, [result, hiddenColumns]);
 
+    const totalResultRows = tableView?.totalRows ?? result?.rowCount ?? 0;
+    const activeSortField = tableView?.sortColumn ?? sortConfig.field;
+    const activeSortDirection =
+        tableView?.sortDirection ?? sortConfig.direction;
+
     // Sort rows based on sort config (with performance threshold)
     const sortedRows = useMemo(() => {
-        if (!result || !sortConfig.field) return result?.rows || [];
+        if (!result) return [];
+        if (hasTableViewControls) {
+            return result.rows;
+        }
+
+        if (!sortConfig.field) return result.rows;
 
         // Disable client-side sort for large datasets
         if (result.rowCount > SORT_THRESHOLD) {
@@ -135,7 +175,7 @@ export default function ResultsTable({
         });
 
         return sorted;
-    }, [result, sortConfig]);
+    }, [result, sortConfig, hasTableViewControls]);
 
     // Cap rows to prevent browser freeze
     const cappedRows = useMemo(() => {
@@ -143,9 +183,11 @@ export default function ResultsTable({
     }, [sortedRows]);
 
     // Calculate dataset warnings
-    const isLargeDataset = (result?.rowCount || 0) > LARGE_DATASET_WARNING;
-    const isSortDisabled = (result?.rowCount || 0) > SORT_THRESHOLD;
-    const isRowsCapped = sortedRows.length > MAX_RENDERABLE_ROWS;
+    const isLargeDataset = totalResultRows > LARGE_DATASET_WARNING;
+    const isSortDisabled =
+        !hasTableViewControls && totalResultRows > SORT_THRESHOLD;
+    const isRowsCapped =
+        !hasTableViewControls && sortedRows.length > MAX_RENDERABLE_ROWS;
 
     // Calculate visible rows based on scroll position
     const visibleRange = useMemo(() => {
@@ -211,6 +253,19 @@ export default function ResultsTable({
     };
 
     const handleSort = (field: string) => {
+        if (tableView && onTableViewChange) {
+            onTableViewChange({
+                sortColumn: field,
+                sortDirection:
+                    tableView.sortColumn === field &&
+                    tableView.sortDirection === "asc"
+                        ? "desc"
+                        : "asc",
+                page: 1,
+            });
+            return;
+        }
+
         // Prevent sort on large datasets
         if (isSortDisabled) return;
 
@@ -405,16 +460,24 @@ export default function ResultsTable({
             >
                 <div className="flex items-center gap-3">
                     <span>
-                        RESULTS ({result.rowCount.toLocaleString()} ROWS)
+                        RESULTS ({totalResultRows.toLocaleString()} ROWS)
                     </span>
-                    <span>│</span>
-                    <span>{result.fields.length} COLS</span>
-                    {sortConfig.field && !isSortDisabled && (
+                    {tableName && (
                         <>
                             <span>│</span>
                             <span style={{ color: "var(--text-primary)" }}>
-                                SORTED BY: {sortConfig.field}{" "}
-                                {sortConfig.direction === "asc" ? "↑" : "↓"}
+                                {tableName}
+                            </span>
+                        </>
+                    )}
+                    <span>│</span>
+                    <span>{result.fields.length} COLS</span>
+                    {activeSortField && !isSortDisabled && (
+                        <>
+                            <span>│</span>
+                            <span style={{ color: "var(--text-primary)" }}>
+                                SORTED BY: {activeSortField}{" "}
+                                {activeSortDirection === "asc" ? "↑" : "↓"}
                             </span>
                         </>
                     )}
@@ -467,6 +530,19 @@ export default function ResultsTable({
                     )}
                 </div>
                 <div className="flex items-center gap-2">
+                    {tableView && onRefreshTableView && (
+                        <button
+                            onClick={onRefreshTableView}
+                            className="px-2 py-0.5 hover:opacity-80 transition-opacity border text-[10px]"
+                            style={{
+                                borderColor: "var(--border)",
+                                color: "var(--text-muted)",
+                            }}
+                            title="Refresh current table preview"
+                        >
+                            REFRESH
+                        </button>
+                    )}
                     <button
                         onClick={toggleDensity}
                         className="px-2 py-0.5 hover:opacity-80 transition-opacity border text-[10px]"
@@ -502,6 +578,139 @@ export default function ResultsTable({
                     </button>
                 </div>
             </div>
+
+            {tableView && onTableViewChange && (
+                <div
+                    className="px-3 py-2 flex flex-wrap items-center justify-between gap-3 border-b"
+                    style={{
+                        background: "var(--panel)",
+                        borderColor: "var(--border)",
+                    }}
+                >
+                    <div className="flex items-center gap-2 min-w-[280px] flex-1">
+                        <input
+                            key={tableView.searchQuery}
+                            defaultValue={tableView.searchQuery}
+                            onChange={(e) => {
+                                if (searchDebounceRef.current !== null) {
+                                    window.clearTimeout(
+                                        searchDebounceRef.current,
+                                    );
+                                }
+
+                                const nextValue = e.target.value;
+                                searchDebounceRef.current = window.setTimeout(
+                                    () => {
+                                        onTableViewChange({
+                                            searchQuery: nextValue,
+                                            page: 1,
+                                        });
+                                    },
+                                    250,
+                                );
+                            }}
+                            placeholder="Filter rows across visible columns..."
+                            className="min-w-0 flex-1 px-3 py-1.5 text-[12px] border outline-none"
+                            style={{
+                                background: "var(--bg)",
+                                borderColor: "var(--border)",
+                                color: "var(--text-primary)",
+                            }}
+                        />
+                        {tableView.searchQuery && (
+                            <button
+                                onClick={() =>
+                                    onTableViewChange({
+                                        searchQuery: "",
+                                        page: 1,
+                                    })
+                                }
+                                className="px-2 py-1 text-[10px] border hover:opacity-80 transition-opacity"
+                                style={{
+                                    borderColor: "var(--border)",
+                                    color: "var(--text-muted)",
+                                }}
+                            >
+                                CLEAR
+                            </button>
+                        )}
+                    </div>
+
+                    <div className="flex items-center gap-2 text-[11px] uppercase tracking-wide">
+                        <span style={{ color: "var(--text-muted)" }}>
+                            Showing {result.rows.length.toLocaleString()} of{" "}
+                            {tableView.totalRows.toLocaleString()}
+                        </span>
+                        <span style={{ color: "var(--text-muted)" }}>│</span>
+                        <label
+                            htmlFor="table-view-page-size"
+                            style={{ color: "var(--text-muted)" }}
+                        >
+                            Page Size
+                        </label>
+                        <select
+                            id="table-view-page-size"
+                            value={tableView.pageSize}
+                            onChange={(e) =>
+                                onTableViewChange({
+                                    pageSize: Number.parseInt(
+                                        e.target.value,
+                                        10,
+                                    ),
+                                    page: 1,
+                                })
+                            }
+                            className="px-2 py-1 text-[11px] border"
+                            style={{
+                                background: "var(--bg)",
+                                borderColor: "var(--border)",
+                                color: "var(--text-primary)",
+                            }}
+                        >
+                            <option value={25}>25</option>
+                            <option value={50}>50</option>
+                            <option value={100}>100</option>
+                            <option value={250}>250</option>
+                        </select>
+                        <button
+                            onClick={() =>
+                                onTableViewChange({
+                                    page: Math.max(1, tableView.page - 1),
+                                })
+                            }
+                            disabled={tableView.page <= 1}
+                            className="px-2 py-1 text-[10px] border hover:opacity-80 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
+                            style={{
+                                borderColor: "var(--border)",
+                                color: "var(--text-muted)",
+                            }}
+                        >
+                            PREV
+                        </button>
+                        <span style={{ color: "var(--text-primary)" }}>
+                            PAGE {tableView.page} OF {tableView.totalPages}
+                        </span>
+                        <button
+                            onClick={() =>
+                                onTableViewChange({
+                                    page: Math.min(
+                                        tableView.totalPages,
+                                        tableView.page + 1,
+                                    ),
+                                })
+                            }
+                            disabled={tableView.page >= tableView.totalPages}
+                            className="px-2 py-1 text-[10px] border hover:opacity-80 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
+                            style={{
+                                borderColor: "var(--border)",
+                                color: "var(--text-muted)",
+                            }}
+                        >
+                            NEXT
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Results Table */}
             <div
@@ -565,10 +774,10 @@ export default function ResultsTable({
                                     <span className="truncate flex-1">
                                         {field}
                                     </span>
-                                    {sortConfig.field === field &&
+                                    {activeSortField === field &&
                                         !isSortDisabled && (
                                             <span className="ml-1 text-[10px]">
-                                                {sortConfig.direction === "asc"
+                                                {activeSortDirection === "asc"
                                                     ? "↑"
                                                     : "↓"}
                                             </span>

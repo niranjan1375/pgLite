@@ -3,8 +3,42 @@ import { createPool } from "@/lib/db";
 import { applyVariables, validateVariables } from "@/lib/templates";
 
 export const dynamic = "force-dynamic";
+const MAX_ROWS = 10000;
+const EXPLAIN_PREFIX = "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ";
+const DEFAULT_QUERY_TIMEOUT_MS = 120000;
+const MIN_QUERY_TIMEOUT_MS = 1000;
+const MAX_QUERY_TIMEOUT_MS = 300000;
 
 const VARIABLE_USAGE_REGEX = /(?<!\w)@([A-Za-z_][A-Za-z0-9_]*)\b/g;
+const TEXT_NUMERIC_OPERATOR_MISMATCH_REGEX =
+    /operator does not exist:\s*(?:character varying|text)\s*=\s*(?:smallint|integer|bigint|numeric|real|double precision)/i;
+
+function isNumericVariableValue(value: string): boolean {
+    const trimmed = value.trim();
+    return (
+        /^-?\d+(?:\.\d+)?$/.test(trimmed) ||
+        /^-?\d+(?:\.\d+)?[eE][+-]?\d+$/.test(trimmed)
+    );
+}
+
+function formatWorkspaceQueryError(
+    error: Error,
+    variables: Record<string, string>,
+): string {
+    if (!TEXT_NUMERIC_OPERATOR_MISMATCH_REGEX.test(error.message)) {
+        return error.message;
+    }
+
+    const numericVariables = Object.entries(variables)
+        .filter(([, value]) => isNumericVariableValue(value))
+        .map(([name]) => `@${name}`);
+
+    if (numericVariables.length === 0) {
+        return error.message;
+    }
+
+    return `${error.message}. Numeric-looking variables are inserted without quotes in workspace mode. If the column is text, define the variable with quotes, for example @mobileNumber = '9705695237'. Affected variables: ${numericVariables.join(", ")}.`;
+}
 
 function getReferencedVariables(sql: string): Set<string> {
     const usedVariables = new Set<string>();
@@ -12,6 +46,27 @@ function getReferencedVariables(sql: string): Set<string> {
         usedVariables.add(match[1]);
     }
     return usedVariables;
+}
+
+function isExplainableReadQuery(query: string): boolean {
+    const normalized = query.trim().toUpperCase();
+    return (
+        normalized.startsWith("SELECT") ||
+        normalized.startsWith("WITH") ||
+        normalized.startsWith("VALUES")
+    );
+}
+
+function resolveQueryTimeoutMs(timeoutMs: unknown): number {
+    if (typeof timeoutMs !== "number" || !Number.isFinite(timeoutMs)) {
+        return DEFAULT_QUERY_TIMEOUT_MS;
+    }
+
+    const normalized = Math.floor(timeoutMs);
+    return Math.min(
+        MAX_QUERY_TIMEOUT_MS,
+        Math.max(MIN_QUERY_TIMEOUT_MS, normalized),
+    );
 }
 
 // Extract database names from SQL query using table prefix syntax (db_name.table_name)
@@ -38,16 +93,22 @@ function extractDatabasePrefixes(sql: string): string[] {
 // PostgreSQL doesn't support cross-database queries, so we strip the DB prefix
 // after routing to the correct database
 function stripDatabasePrefix(sql: string, dbName: string): string {
+    const escapedDbName = dbName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     // Replace db_name. with nothing (case-insensitive)
     // Use word boundary to avoid partial matches
-    const regex = new RegExp(`\\b${dbName}\\.`, "gi");
+    const regex = new RegExp(`\\b${escapedDbName}\\.`, "gi");
     return sql.replace(regex, "");
 }
 
 export async function POST(request: NextRequest) {
+    let pool: ReturnType<typeof createPool> | null = null;
+    let requestVariables: Record<string, string> = {};
+    let appliedQueryTimeoutMs = DEFAULT_QUERY_TIMEOUT_MS;
+
     try {
         const body = await request.json();
-        const { sql, variables, environment } = body;
+        const { sql, variables, environment, explain, timeoutMs } = body;
+        appliedQueryTimeoutMs = resolveQueryTimeoutMs(timeoutMs);
 
         // Validate required fields
         if (!sql || typeof sql !== "string") {
@@ -64,6 +125,15 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        if (explain === true && !isExplainableReadQuery(sql)) {
+            return NextResponse.json(
+                {
+                    error: "EXPLAIN is currently limited to read-only SELECT, WITH, or VALUES queries.",
+                },
+                { status: 400 },
+            );
+        }
+
         // Validate variables if provided
         if (variables && typeof variables !== "object") {
             return NextResponse.json(
@@ -76,6 +146,7 @@ export async function POST(request: NextRequest) {
 
         const providedVariables: Record<string, string> =
             variables && typeof variables === "object" ? variables : {};
+        requestVariables = providedVariables;
 
         const referencedVariables = getReferencedVariables(cleanedSql);
         const missingVariables = [...referencedVariables].filter(
@@ -160,7 +231,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Create connection pool for the detected database
-        const pool = await createPool(environment, routedDatabase);
+        pool = createPool(environment, routedDatabase);
 
         if (!pool) {
             return NextResponse.json(
@@ -172,8 +243,11 @@ export async function POST(request: NextRequest) {
         const client = await pool.connect();
 
         try {
-            // Set query timeout (30 seconds)
-            await client.query("SET statement_timeout = 30000");
+            // Set per-session timeout for this request.
+            await client.query(
+                "SELECT set_config('statement_timeout', $1, false)",
+                [String(appliedQueryTimeoutMs)],
+            );
 
             // Strip database prefix from query since PostgreSQL doesn't support cross-DB queries
             // After routing to the correct DB, we need to remove "db_name." from table references
@@ -182,8 +256,40 @@ export async function POST(request: NextRequest) {
                 routedDatabase,
             );
 
-            // Execute the modified query
-            const result = await client.query(strippedQuery);
+            const finalQuery =
+                explain === true
+                    ? `${EXPLAIN_PREFIX}${strippedQuery}`
+                    : strippedQuery;
+
+            const result = await client.query(finalQuery);
+
+            if (explain === true) {
+                const explainJson = result.rows[0]?.["QUERY PLAN"];
+                const planRoot = Array.isArray(explainJson)
+                    ? explainJson[0]
+                    : explainJson;
+
+                return NextResponse.json({
+                    isExplain: true,
+                    explain: planRoot,
+                    executionTime:
+                        typeof planRoot?.["Execution Time"] === "number"
+                            ? Math.round(planRoot["Execution Time"])
+                            : undefined,
+                    routedDatabase,
+                });
+            }
+
+            if (result.rows.length > MAX_ROWS) {
+                return NextResponse.json(
+                    {
+                        error: `Query returned ${result.rows.length.toLocaleString()} rows (limit: ${MAX_ROWS.toLocaleString()}). Please add a LIMIT clause to reduce the result set.`,
+                        rowCount: result.rows.length,
+                        truncated: true,
+                    },
+                    { status: 413 },
+                );
+            }
 
             // Check if this is a data-returning query
             if (result.rows && result.fields) {
@@ -209,12 +315,34 @@ export async function POST(request: NextRequest) {
         console.error("Workspace query error:", error);
 
         if (error instanceof Error) {
-            return NextResponse.json({ error: error.message }, { status: 500 });
+            const pgError = error as Error & { code?: string };
+            if (pgError.code === "57014") {
+                const timeoutSeconds = Math.max(
+                    1,
+                    Math.round(appliedQueryTimeoutMs / 1000),
+                );
+                return NextResponse.json(
+                    {
+                        error: `Query timed out after ${timeoutSeconds} seconds. Add a LIMIT clause or refine your query to reduce the result set.`,
+                    },
+                    { status: 408 },
+                );
+            }
+            return NextResponse.json(
+                {
+                    error: formatWorkspaceQueryError(error, requestVariables),
+                },
+                { status: 500 },
+            );
         }
 
         return NextResponse.json(
             { error: "An unknown error occurred" },
             { status: 500 },
         );
+    } finally {
+        if (pool) {
+            await pool.end();
+        }
     }
 }

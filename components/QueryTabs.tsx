@@ -7,6 +7,7 @@ import {
     useImperativeHandle,
     useRef,
 } from "react";
+import { format as formatSql } from "sql-formatter";
 import { getEnvironmentColor } from "@/lib/design-system";
 import { useKeyboard } from "@/hooks/useKeyboard";
 
@@ -402,6 +403,30 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
         }
     };
 
+    const formatActiveTabQuery = () => {
+        if (!activeTab) {
+            return;
+        }
+
+        try {
+            const formattedQuery = formatSql(activeTab.query, {
+                language: "postgresql",
+                tabWidth: 2,
+                keywordCase: "upper",
+            });
+
+            setTabs((prevTabs) =>
+                prevTabs.map((tab) =>
+                    tab.id === activeTab.id
+                        ? { ...tab, query: formattedQuery }
+                        : tab,
+                ),
+            );
+        } catch (error) {
+            console.error("Failed to format SQL:", error);
+        }
+    };
+
     const renameTab = (tabId: string) => {
         const name = window.prompt("Rename tab:");
         if (name) {
@@ -555,6 +580,20 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
                 >
                     <span>WS</span>
                 </span>
+            </button>
+
+            <button
+                onClick={formatActiveTabQuery}
+                className="px-3 py-1 text-[11px] font-medium hover:opacity-80 transition-all border rounded"
+                style={{
+                    color: "var(--text-muted)",
+                    borderColor: "var(--border)",
+                    background: "var(--bg)",
+                    marginLeft: "4px",
+                }}
+                title="Format SQL in active tab"
+            >
+                FMT
             </button>
         </div>
     );
