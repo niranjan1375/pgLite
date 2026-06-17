@@ -1,3 +1,7 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 # pgLite — Claude Code Guide
 
 ## Project Overview
@@ -27,7 +31,9 @@ pgLite is a minimal, full-stack PostgreSQL web admin tool built for engineers an
 | `lib/db.ts` | Pool creation — fresh pool per request, no singleton |
 | `lib/environments.ts` | Multi-environment config loading (credentials.json → env var → legacy env vars) |
 | `lib/templates.ts` | SQL template parsing, variable substitution, file storage |
+| `lib/workspace-utils.ts` | Frontend: variable extraction/validation, selection-vs-statement logic |
 | `lib/queryStorage.ts` | localStorage persistence for saved queries |
+| `lib/design-system.ts` | Central design tokens — colors, typography, spacing, layout constants |
 | `components/SQLEditor.tsx` | Monaco wrapper — variable extraction, autocomplete, keyboard shortcuts |
 | `components/ResultsTable.tsx` | Virtual-scrolled result grid (MAX 10K rows, client sort disabled >5K) |
 | `components/DatabaseTree.tsx` | Schema explorer sidebar (large file ~67KB) |
@@ -39,10 +45,12 @@ pgLite is a minimal, full-stack PostgreSQL web admin tool built for engineers an
 ## Development Commands
 
 ```bash
-npm run dev      # Start dev server (Next.js)
+npm run dev      # Start dev server on http://localhost:6500
 npm run build    # Production build
 npm run lint     # ESLint
 ```
+
+No test framework is configured in this project.
 
 ## Database Configuration
 
@@ -70,6 +78,7 @@ Seven environments configured: `loadtest`, `sandbox`, `staging`, `vegapay-uat-sn
 ## Code Style
 
 - Brutalist dark UI — monospace fonts, electric green accents, sharp edges, no softness
+- All design tokens (colors, spacing, typography, layout dimensions) live in `lib/design-system.ts` — use these constants rather than hardcoding values
 - TypeScript throughout — avoid `any`
 - Tailwind for styling — no CSS modules
 - API routes follow Next.js App Router convention (`route.ts` with named exports `GET`/`POST`)

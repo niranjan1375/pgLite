@@ -1,0 +1,146 @@
+\documentclass[letterpaper,11pt]{article}
+
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{xcolor}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage[colorlinks = true,
+            linkcolor = red,
+            urlcolor  = darkgray,
+            citecolor = blue,
+            anchorcolor = blue]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+\usepackage{fontawesome5}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric}
+\input{glyphtounicode}
+
+\hypersetup{pdfborder = 0 0 0}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+% Margins
+\addtolength{\oddsidemargin}{-0.6in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1.19in}
+\addtolength{\topmargin}{-.7in}
+\addtolength{\textheight}{1.4in}
+
+\urlstyle{same}
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+% Section formatting
+\titleformat{\section}{
+  \vspace{-4pt}\scshape\raggedright\large\bfseries
+}{}{0em}{}[\color{black}\titlerule \vspace{-5pt}]
+
+\pdfgentounicode=1
+
+% Custom commands
+\newcommand{\resumeItem}[1]{\item\small{{#1 \vspace{-2pt}}}}
+\newcommand{\resumeSubheading}[4]{
+  \vspace{-2pt}\item
+    \begin{tabular*}{1.0\textwidth}[t]{l@{\extracolsep{\fill}}r}
+      \textbf{#1} & \textbf{\small #2} \\
+      \textit{\small#3} & \textit{\small #4} \\
+    \end{tabular*}\vspace{-7pt}
+}
+\newcommand{\resumeProjectHeading}[2]{
+    \item
+    \begin{tabular*}{1.001\textwidth}{l@{\extracolsep{\fill}}r}
+      \small#1 & \textbf{\small #2}\\
+    \end{tabular*}\vspace{-7pt}
+}
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.0in, label={}]} 
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
+\newcommand{\resumeItemListStart}{\begin{itemize}}
+\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-5pt}}
+
+\begin{document}
+
+\begin{center}
+    {\Huge \scshape \color{teal} Niranjan Potnuru} \\ \vspace{1pt}
+    \small
+    \href{tel:9705695337}{{\faPhone\ \underline{9705695337}}}~
+    \href{mailto:npotnuru8@gmail.com}{\faEnvelope\ \underline{npotnuru8@gmail.com}}~
+    \href{https://github.com/niranjan1375}{\faGithub\ \underline{niranjan1375}}~
+    \vspace{-8pt}
+\end{center}
+
+%-----------EDUCATION-----------
+\section{\color{teal} Education}
+  \resumeSubHeadingListStart
+    \resumeSubheading
+      {B.Tech, Mechanical Engineering}{2018 -- 2022}
+      {Indian Institute of Technology, Indore}{}
+    \resumeItemListStart
+        \resumeItem{Minor in Astronomy}
+    \resumeItemListEnd
+  \resumeSubHeadingListEnd
+
+%-----------SKILLS-----------
+\section{\color{teal} Skills}
+\small{
+\begin{itemize}
+    \item \textbf{Languages:} TypeScript ,  JavaScript (Advanced), Python (Intermediate), C++ (Familiar)
+    \item \textbf{Frameworks & Libraries:} React.js, Next.js, React Native, Redux, FastAPI, Ruby on Rails (basic)
+    \item \textbf{Web & API:} HTML, CSS, REST APIs, Nginx, Docker
+    \item \textbf{Tools:} Git, Jira, Postman, TablePlus, Sentry
+\end{itemize}}
+
+%-----------EXPERIENCE-----------
+\section{\color{teal} Experience}
+  \resumeSubHeadingListStart
+    \resumeSubheading{Vegapay}{Jan 2025 -- Present}{Software Development Engineer}{Bangalore}
+    \resumeItemListStart
+        \resumeItem{\textbf{Rewards Dashboard (Jan -- Jul 2025):} Led frontend development of a Vite.js + React.js (Nx monorepo) app allowing enterprise clients to configure, preview, and simulate credit card rewards programs. Built complex nested dynamic forms and integrated with in-house Java APIs.}
+        \resumeItem{Implemented API-level \textbf{encryption/decryption} of requests and responses using frontend crypto libraries, strengthening client data security.}
+        \resumeItem{Developed a proof-of-concept with \textbf{Redocly} for customer-facing API documentation, including role-based access for internal teams to manage client-specific API visibility.}
+        \resumeItem{Handled \textbf{on-call support} for frontend production issues (e.g., hardcoded values, critical bug fixes).}
+        \resumeItem{Became a \textbf{core team member}, contributing to new features, optimizations, and backend improvements.}
+    \resumeItemListEnd
+
+    \resumeSubheading{Cogoport}{Aug 2022 -- Jan 2025}{Software Development Engineer}{Mumbai}
+    \resumeItemListStart
+        \resumeItem{Built end-to-end RFQ and Contracts flow using Next.js (frontend) and FastAPI microservices (backend), driving \textbf{60\% of company revenue}.}
+        \resumeItem{Developed internal CRM and PRM tools with React Hook Form and Nivo Charts, improving sales tracking and reporting for Key Account Managers.}
+        \resumeItem{Revamped Search-to-Checkout flow across web and mobile platforms, increasing conversion by \textbf{20\%} and boosting revenue by \textbf{35\%}.}
+        \resumeItem{Implemented global customer onboarding workflows, including document and KYC verification across multiple countries.}
+        \resumeItem{Supported production deployments, incident resolution, and root cause analysis, ensuring minimal downtime and meeting SLAs.}
+        \resumeItem{Mentored 5 junior developers on codebase and architecture, reducing onboarding time by \textbf{30\%}.}
+        \resumeItem{Conducted detailed code reviews, promoting maintainability and coding best practices.}
+    \resumeItemListEnd
+  \resumeSubHeadingListEnd
+
+%-----------PUBLICATIONS-----------
+\section{\color{teal} Publications}
+  \resumeSubHeadingListStart
+    \resumeSubheading
+      {Development and characterization of Ni-B coatings with reinforcement of hBN}{Dec 2021 -- May 2022}
+      {B.Tech Project}{\href{https://mtt.cmti.res.in/index.php/journal/article/view/78}{\underline{Link}}}
+    \resumeItemListStart
+        \resumeItem{Investigated electroless Ni-B coatings reinforced with hBN particles to improve wear resistance and mechanical properties.}
+    \resumeItemListEnd
+  \resumeSubHeadingListEnd
+
+%-----------ACHIEVEMENTS-----------
+\section{\color{teal} Achievements}
+    \resumeItemListStart
+        \resumeItem{\textbf{JEE Advanced 2018:} AIR \textbf{4553} (Top 0.3\% of 0.15M candidates).}
+        \resumeItem{\textbf{JEE Mains 2018:} AIR \textbf{3673} (Top 0.3\% of 1.2M candidates).}
+        \resumeItem{\textbf{Andhra Pradesh EAMCET:} State Rank \textbf{864} out of 0.23M.}
+        \resumeItem{\textbf{Telangana EAMCET:} State Rank \textbf{432} out of 0.23M.}
+    \resumeItemListEnd
+
+\end{document}
+

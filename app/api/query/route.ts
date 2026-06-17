@@ -136,6 +136,7 @@ export async function POST(req: NextRequest) {
             rows: result.rows,
             rowCount: result.rowCount ?? 0,
             fields: result.fields.map((f) => f.name),
+            fieldTypes: result.fields.map((f) => f.dataTypeID),
             truncated: false,
             executionTime,
         });

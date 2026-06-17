@@ -173,19 +173,8 @@ export default function Home() {
     const [workspaceSchemas, setWorkspaceSchemas] = useState<WorkspaceSchema[]>(
         [],
     );
-    const [editorHeight, setEditorHeight] = useState<number>(() => {
-        if (typeof window !== "undefined") {
-            const saved = localStorage.getItem("editorHeight");
-            return saved ? parseInt(saved, 10) : 280;
-        }
-        return 280;
-    });
-    const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
-        if (typeof window !== "undefined") {
-            return localStorage.getItem("sidebarCollapsed") === "true";
-        }
-        return false;
-    });
+    const [editorHeight, setEditorHeight] = useState<number>(280);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
     const [currentTable, setCurrentTable] = useState<{
         name: string;
         schema: string;
@@ -531,6 +520,17 @@ export default function Home() {
     useEffect(() => {
         localStorage.setItem("sidebarCollapsed", sidebarCollapsed.toString());
     }, [sidebarCollapsed]);
+
+    // Restore persisted layout prefs after mount (avoids SSR hydration mismatch)
+    useEffect(() => {
+        const savedHeight = localStorage.getItem("editorHeight");
+        if (savedHeight) {
+            const h = parseInt(savedHeight, 10);
+            if (!isNaN(h) && h > 0) setEditorHeight(h);
+        }
+        const savedCollapsed = localStorage.getItem("sidebarCollapsed");
+        if (savedCollapsed === "true") setSidebarCollapsed(true);
+    }, []);
 
     useEffect(() => {
         const handleToggleSidebarShortcut = (e: KeyboardEvent) => {
@@ -1723,26 +1723,21 @@ export default function Home() {
 
                             {/* Run Button Strip */}
                             <div
-                                className="h-[32px] flex items-center justify-between px-3 text-[12px] border-t"
+                                className="h-[34px] flex items-center justify-between px-3 border-t flex-shrink-0"
                                 style={{
                                     background: "var(--panel)",
                                     borderColor: "var(--border)",
+                                    gap: "8px",
                                 }}
                             >
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2">
                                     {activeTab?.mode === "workspace" && (
                                         <button
                                             onClick={handleSaveTemplate}
-                                            className="px-2 py-0.5 hover:opacity-80 transition-opacity  rounded text-[10px]"
-                                            style={{
-                                                color: "var(--accent)",
-                                                // borderColor: "var(--accent)",
-                                                padding: "4px",
-                                                fontSize: "12px",
-                                            }}
+                                            className="cyber-btn cyber-btn-accent"
                                             title="Save or overwrite template"
                                         >
-                                            [ Save template ]
+                                            save template
                                         </button>
                                     )}
 
@@ -1754,102 +1749,57 @@ export default function Home() {
                                             setSaveQueryModalOpen(true);
                                         }}
                                         disabled={!activeTab?.query.trim()}
-                                        className="px-2 py-0.5 hover:opacity-80 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed rounded text-[10px]"
-                                        style={{
-                                            color: activeTab?.query.trim()
-                                                ? "var(--warning)"
-                                                : "var(--text-muted)",
-                                            padding: "4px",
-                                            fontSize: "12px",
-                                        }}
+                                        className="cyber-btn cyber-btn-warn"
                                         title="Save current query"
                                     >
-                                        [ Save query ]
+                                        save query
                                     </button>
                                 </div>
 
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2">
                                     <button
-                                        onClick={() =>
-                                            fetchTablesAndColumns(true)
-                                        }
+                                        onClick={() => fetchTablesAndColumns(true)}
                                         disabled={loadingTables}
-                                        className="px-2 py-1 hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed rounded text-[10px] w-full flex justify-center items-center mt-auto"
-                                        style={{
-                                            color: "var(--text-muted)",
-                                        }}
+                                        className="cyber-btn"
                                         title="Refresh autocomplete/intellisense data"
                                     >
                                         {loadingTables ? (
                                             <span className="flex items-center gap-1">
-                                                [
                                                 <RefreshIcon className="w-3 h-3 animate-spin" />
-                                                <span className="uppercase tracking-tighter">
-                                                    Refreshing
-                                                </span>
-                                                <span className="flex gap-0.5 ml-1">
-                                                    <span className="w-0.5 h-0.5 bg-current animate-pulse [animation-delay:-0.3s]"></span>
-                                                    <span className="w-0.5 h-0.5 bg-current animate-pulse [animation-delay:-0.15s]"></span>
-                                                    <span className="w-0.5 h-0.5 bg-current animate-pulse"></span>
-                                                </span>
-                                                ]
+                                                refreshing
                                             </span>
                                         ) : (
-                                            <div className="flex items-center gap-1 opacity-70">
-                                                [
-                                                <span className="flex items-center gap-1  tracking-tighter">
-                                                    <RefreshIcon className="w-3 h-3" />
-                                                    Intellisense
-                                                </span>
-                                                ]
-                                            </div>
+                                            <span className="flex items-center gap-1">
+                                                <RefreshIcon className="w-3 h-3" />
+                                                intellisense
+                                            </span>
                                         )}
                                     </button>
 
                                     <button
-                                        onClick={() => {
-                                            void runCurrentTab(false);
-                                        }}
-                                        disabled={
-                                            loading || !activeTab?.query.trim()
-                                        }
-                                        className="hover:opacity-80 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
-                                        style={{
-                                            color: loading
-                                                ? "var(--text-muted)"
-                                                : "var(--accent)",
-                                            whiteSpace: "nowrap",
-                                        }}
+                                        onClick={() => { void runCurrentTab(false); }}
+                                        disabled={loading || !activeTab?.query.trim()}
+                                        className="cyber-btn cyber-btn-accent"
+                                        style={{ minWidth: "80px", justifyContent: "center" }}
                                     >
                                         {loading ? (
-                                            <span className="flex items-center gap-2">
+                                            <span className="flex items-center gap-1.5">
                                                 <span className="inline-block w-2 h-2 border border-current border-t-transparent animate-spin" />
-                                                Executing
                                                 {executionTime !== undefined
-                                                    ? `... ${(executionTime / 1000).toFixed(2)}s`
-                                                    : "..."}
+                                                    ? `${(executionTime / 1000).toFixed(1)}s`
+                                                    : "running"}
                                             </span>
                                         ) : (
-                                            "[ Run ⌘↵ ]"
+                                            "run ⌘↵"
                                         )}
                                     </button>
                                     <button
-                                        onClick={() => {
-                                            void runCurrentTab(true);
-                                        }}
-                                        disabled={
-                                            loading || !activeTab?.query.trim()
-                                        }
-                                        className="hover:opacity-80 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
-                                        style={{
-                                            color: loading
-                                                ? "var(--text-muted)"
-                                                : "var(--warning)",
-                                            whiteSpace: "nowrap",
-                                        }}
-                                        title="Run EXPLAIN ANALYZE for the current query"
+                                        onClick={() => { void runCurrentTab(true); }}
+                                        disabled={loading || !activeTab?.query.trim()}
+                                        className="cyber-btn cyber-btn-warn"
+                                        title="Run EXPLAIN ANALYZE"
                                     >
-                                        [ Explain ]
+                                        explain
                                     </button>
                                 </div>
                             </div>

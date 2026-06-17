@@ -297,6 +297,7 @@ export async function POST(request: NextRequest) {
                     rows: result.rows,
                     rowCount: result.rowCount || result.rows.length,
                     fields: result.fields.map((f) => f.name),
+                    fieldTypes: result.fields.map((f) => f.dataTypeID),
                     routedDatabase,
                 });
             }

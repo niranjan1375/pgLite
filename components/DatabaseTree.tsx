@@ -272,94 +272,92 @@ export default function DatabaseTree({
             className="flex flex-col h-full"
             style={{ background: "var(--bg)" }}
         >
-            {/* Schema Browser Header */}
+            {/* Header */}
             <div
-                className="px-3 py-2 border-b flex justify-between items-center"
-                style={{
-                    borderColor: "var(--border)",
-                    background: "var(--panel)",
-                }}
+                className="px-3 py-2.5 border-b flex justify-between items-center flex-shrink-0"
+                style={{ borderColor: "var(--border)", background: "var(--panel)" }}
             >
-                <div>
-                    <h2
-                        className="text-[11px] uppercase tracking-wider flex items-center gap-2"
-                        style={{ color: "var(--text-muted)" }}
-                    >
-                        <span>
-                            {workspaceMode ? "Schema Explorer" : "Schema"}
+                <div className="flex flex-col gap-0.5">
+                    <div className="flex items-center gap-2">
+                        <span
+                            className="text-[10px] uppercase tracking-[0.18em] font-bold"
+                            style={{ color: "#4a6a80" }}
+                        >
+                            {workspaceMode ? "explorer" : "schema"}
                         </span>
                         {workspaceMode && (
                             <span
-                                className="px-1 py-[1px] text-[9px] border rounded"
-                                style={{
-                                    color: "var(--accent)",
-                                    borderColor: "var(--accent)",
-                                }}
+                                className="px-1 text-[9px] border font-bold tracking-widest"
+                                style={{ color: "var(--accent)", borderColor: "rgba(0,255,136,0.35)" }}
                             >
                                 WS
                             </span>
                         )}
-                    </h2>
+                    </div>
                     {!workspaceMode && selectedDatabase && (
-                        <p
-                            className="text-[11px] mt-1"
-                            style={{ color: "var(--text-secondary)" }}
-                        >
-                            {selectedDatabase}
-                            <span
-                                className="ml-2"
-                                style={{ color: "var(--text-muted)" }}
-                            >
-                                {totalTables} TABLES
+                        <div className="flex items-center gap-2">
+                            <span className="text-[11px]" style={{ color: "var(--text-primary)" }}>
+                                {selectedDatabase}
                             </span>
-                        </p>
+                            <span className="text-[10px]" style={{ color: "#2a3f50" }}>
+                                {totalTables} tables
+                            </span>
+                        </div>
                     )}
                     {workspaceMode && (
-                        <p
-                            className="text-[11px] mt-1"
-                            style={{ color: "var(--text-secondary)" }}
-                        >
-                            {workspaceSchemas.length} databases
-                            <span
-                                className="ml-2"
-                                style={{ color: "var(--text-muted)" }}
-                            >
-                                {totalTables} TABLES
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px]" style={{ color: "#2a3f50" }}>
+                                {workspaceSchemas.length} dbs · {totalTables} tables
                             </span>
-                        </p>
+                        </div>
                     )}
                 </div>
                 {onRefresh && (
                     <button
                         onClick={onRefresh}
                         disabled={loading}
-                        className="text-[14px] hover:opacity-80 transition-opacity disabled:opacity-30"
-                        style={{ color: "var(--accent)" }}
+                        className="flex items-center justify-center transition-all disabled:opacity-30"
+                        style={{ color: loading ? "var(--text-dim)" : "var(--accent)" }}
                         title="Refresh schema"
                     >
-                        ↻
+                        <svg
+                            width="14" height="14" viewBox="0 0 14 14" fill="none"
+                            stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"
+                            className={loading ? "animate-spin" : ""}
+                        >
+                            <path d="M13 7A6 6 0 1 1 7 1" />
+                            <polyline points="10,1 13,1 13,4" />
+                        </svg>
                     </button>
                 )}
             </div>
 
+            {/* Search */}
             <div
-                className="px-2 py-2 border-b"
-                style={{
-                    borderColor: "var(--border)",
-                    background: "var(--panel)",
-                }}
+                className="px-2 py-2 border-b flex-shrink-0"
+                style={{ borderColor: "var(--border)", background: "var(--panel)" }}
             >
-                <input
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Search tables, columns..."
-                    className="w-full text-[11px] px-2 py-1 rounded border outline-none"
-                    style={{
-                        background: "var(--bg)",
-                        color: "var(--text-primary)",
-                        borderColor: "var(--border)",
-                    }}
-                />
+                <div className="relative flex items-center">
+                    <svg
+                        className="absolute left-2 pointer-events-none"
+                        width="11" height="11" viewBox="0 0 11 11" fill="none"
+                        stroke="#2a3f50" strokeWidth="1.5" strokeLinecap="round"
+                    >
+                        <circle cx="4.5" cy="4.5" r="3.5" />
+                        <line x1="7.5" y1="7.5" x2="10" y2="10" />
+                    </svg>
+                    <input
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        placeholder="search tables, columns…"
+                        className="w-full text-[11px] pl-7 pr-2 py-1.5 border outline-none"
+                        style={{
+                            background: "var(--bg)",
+                            color: "var(--text-primary)",
+                            borderColor: searchTerm ? "rgba(0,229,255,0.3)" : "var(--border)",
+                        }}
+                    />
+                </div>
             </div>
 
             {workspaceMode && (
@@ -442,58 +440,22 @@ export default function DatabaseTree({
                         );
 
                         return (
-                            <div key={dbInfo.database} className="mb-2">
+                            <div key={dbInfo.database} className="mb-1">
                                 {/* Database Header */}
                                 <button
-                                    onClick={() =>
-                                        toggleDatabase(dbInfo.database)
-                                    }
-                                    className="w-full flex items-center gap-2 px-2 py-1.5 text-[11px] tracking-wide font-medium hover:bg-[var(--panel)] transition-colors rounded"
+                                    onClick={() => toggleDatabase(dbInfo.database)}
+                                    className="w-full flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-bold tracking-wide transition-colors"
                                     style={{ color: "var(--accent)" }}
+                                    onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(0,255,136,0.05)"; }}
+                                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
                                 >
-                                    <span
-                                        className={`text-[10px] transition-transform inline-block ${
-                                            isDbExpanded ? "rotate-90" : ""
-                                        }`}
+                                    <svg
+                                        width="8" height="8" viewBox="0 0 8 8" fill="currentColor"
+                                        style={{ flexShrink: 0, transition: "transform 0.15s", transform: isDbExpanded ? "rotate(90deg)" : "rotate(0deg)" }}
                                     >
-                                        <svg
-                                            height={12}
-                                            width={12}
-                                            viewBox="-1.59 0 26.804 26.804"
-                                            xmlns="http://www.w3.org/2000/svg"
-                                            fill="#000000"
-                                        >
-                                            <g
-                                                id="SVGRepo_bgCarrier"
-                                                stroke-width="0"
-                                            ></g>
-                                            <g
-                                                id="SVGRepo_tracerCarrier"
-                                                stroke-linecap="round"
-                                                stroke-linejoin="round"
-                                            ></g>
-                                            <g id="SVGRepo_iconCarrier">
-                                                {" "}
-                                                <g
-                                                    id="Group_37"
-                                                    data-name="Group 37"
-                                                    transform="translate(-108.142 -942.014)"
-                                                >
-                                                    {" "}
-                                                    <path
-                                                        id="Path_17"
-                                                        data-name="Path 17"
-                                                        d="M109.642,968.818a1.5,1.5,0,0,1-1.5-1.5v-23.8a1.5,1.5,0,0,1,2.25-1.3l20.616,11.9a1.5,1.5,0,0,1,0,2.6l-20.616,11.9A1.5,1.5,0,0,1,109.642,968.818Zm1.5-22.707V964.72l16.116-9.3Z"
-                                                        fill="#f3f3f3"
-                                                    ></path>{" "}
-                                                </g>{" "}
-                                            </g>
-                                        </svg>
-                                    </span>
-                                    <span
-                                        className="text-[11px]"
-                                        style={{ color: "var(--text-muted)" }}
-                                    >
+                                        <polygon points="0,0 8,4 0,8" />
+                                    </svg>
+                                    <span style={{ color: "rgba(0,255,136,0.5)", flexShrink: 0 }}>
                                         <Icon type="database" />
                                     </span>
                                     <span>{dbInfo.database}</span>
@@ -528,71 +490,24 @@ export default function DatabaseTree({
                                             >
                                                 {/* Schema Header */}
                                                 <button
-                                                    onClick={() =>
-                                                        toggleSchema(schemaKey)
-                                                    }
-                                                    className="w-full flex items-center gap-2 px-2 py-1 text-[10px] tracking-wider hover:bg-[var(--panel)] transition-colors rounded"
-                                                    style={{
-                                                        color: "var(--text-muted)",
-                                                    }}
+                                                    onClick={() => toggleSchema(schemaKey)}
+                                                    className="w-full flex items-center gap-1.5 px-2 py-1 text-[10px] uppercase tracking-widest transition-colors"
+                                                    style={{ color: "#3a5570" }}
+                                                    onMouseEnter={(e) => { e.currentTarget.style.color = "#6a8aaa"; }}
+                                                    onMouseLeave={(e) => { e.currentTarget.style.color = "#3a5570"; }}
                                                 >
-                                                    <span
-                                                        className={`text-[8px] transition-transform inline-block ${
-                                                            isSchemaExpanded
-                                                                ? "rotate-90"
-                                                                : ""
-                                                        }`}
+                                                    <svg
+                                                        width="6" height="6" viewBox="0 0 8 8" fill="currentColor"
+                                                        style={{ flexShrink: 0, transition: "transform 0.15s", transform: isSchemaExpanded ? "rotate(90deg)" : "rotate(0deg)" }}
                                                     >
-                                                        <svg
-                                                            height={10}
-                                                            width={10}
-                                                            viewBox="-1.59 0 26.804 26.804"
-                                                            xmlns="http://www.w3.org/2000/svg"
-                                                            fill="#000000"
-                                                        >
-                                                            <g
-                                                                id="SVGRepo_bgCarrier"
-                                                                stroke-width="0"
-                                                            ></g>
-                                                            <g
-                                                                id="SVGRepo_tracerCarrier"
-                                                                stroke-linecap="round"
-                                                                stroke-linejoin="round"
-                                                            ></g>
-                                                            <g id="SVGRepo_iconCarrier">
-                                                                {" "}
-                                                                <g
-                                                                    id="Group_37"
-                                                                    data-name="Group 37"
-                                                                    transform="translate(-108.142 -942.014)"
-                                                                >
-                                                                    {" "}
-                                                                    <path
-                                                                        id="Path_17"
-                                                                        data-name="Path 17"
-                                                                        d="M109.642,968.818a1.5,1.5,0,0,1-1.5-1.5v-23.8a1.5,1.5,0,0,1,2.25-1.3l20.616,11.9a1.5,1.5,0,0,1,0,2.6l-20.616,11.9A1.5,1.5,0,0,1,109.642,968.818Zm1.5-22.707V964.72l16.116-9.3Z"
-                                                                        fill="#f3f3f3"
-                                                                    ></path>{" "}
-                                                                </g>{" "}
-                                                            </g>
-                                                        </svg>
-                                                    </span>
-                                                    <span className="text-[11px]">
-                                                        <Icon type="schema" />
-                                                    </span>
+                                                        <polygon points="0,0 8,4 0,8" />
+                                                    </svg>
+                                                    <Icon type="schema" />
                                                     <span>
-                                                        {schemaInfo.schema ===
-                                                        "public"
-                                                            ? "TABLES"
-                                                            : schemaInfo.schema.toUpperCase()}
+                                                        {schemaInfo.schema === "public" ? "tables" : schemaInfo.schema}
                                                     </span>
-                                                    <span className="text-[9px] ml-auto">
-                                                        (
-                                                        {
-                                                            schemaInfo.tables
-                                                                .length
-                                                        }
-                                                        )
+                                                    <span className="ml-auto" style={{ color: "#1e3048" }}>
+                                                        {schemaInfo.tables.length}
                                                     </span>
                                                 </button>
 
@@ -626,20 +541,15 @@ export default function DatabaseTree({
                                                                                         tableKey,
                                                                                     )
                                                                                 }
-                                                                                className="p-1 hover:opacity-70 transition-opacity flex-shrink-0"
-                                                                                style={{
-                                                                                    color: "var(--text-muted)",
-                                                                                }}
+                                                                                className="p-1 flex-shrink-0 hover:opacity-80 transition-opacity"
+                                                                                style={{ color: "#2a3f50" }}
                                                                             >
-                                                                                <span
-                                                                                    className={`text-[10px] transition-transform inline-block ${
-                                                                                        isExpanded
-                                                                                            ? "rotate-90"
-                                                                                            : ""
-                                                                                    }`}
+                                                                                <svg
+                                                                                    width="6" height="6" viewBox="0 0 8 8" fill="currentColor"
+                                                                                    style={{ transition: "transform 0.15s", transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)" }}
                                                                                 >
-                                                                                    ►
-                                                                                </span>
+                                                                                    <polygon points="0,0 8,4 0,8" />
+                                                                                </svg>
                                                                             </button>
                                                                             <button
                                                                                 onClick={() =>
@@ -654,25 +564,15 @@ export default function DatabaseTree({
                                                                                         },
                                                                                     )
                                                                                 }
-                                                                                className="flex-1 text-left px-2 py-1 text-[12px] transition-colors flex items-center gap-2 min-w-0 rounded"
-                                                                                style={{
-                                                                                    color: "var(--text-primary)",
+                                                                                className="flex-1 text-left px-2 py-1 text-[11px] transition-colors flex items-center gap-2 min-w-0"
+                                                                                style={{ color: "#7a9ab0" }}
+                                                                                onMouseEnter={(e) => {
+                                                                                    e.currentTarget.style.background = "rgba(0,229,255,0.04)";
+                                                                                    e.currentTarget.style.color = "var(--cyan)";
                                                                                 }}
-                                                                                onMouseEnter={(
-                                                                                    e,
-                                                                                ) => {
-                                                                                    e.currentTarget.style.background =
-                                                                                        "var(--panel)";
-                                                                                    e.currentTarget.style.color =
-                                                                                        "var(--accent)";
-                                                                                }}
-                                                                                onMouseLeave={(
-                                                                                    e,
-                                                                                ) => {
-                                                                                    e.currentTarget.style.background =
-                                                                                        "transparent";
-                                                                                    e.currentTarget.style.color =
-                                                                                        "var(--text-primary)";
+                                                                                onMouseLeave={(e) => {
+                                                                                    e.currentTarget.style.background = "transparent";
+                                                                                    e.currentTarget.style.color = "#7a9ab0";
                                                                                 }}
                                                                                 title={`Preview ${dbInfo.database}.${tableInfo.name}`}
                                                                             >
@@ -689,11 +589,8 @@ export default function DatabaseTree({
                                                                                         tableInfo.name
                                                                                     }
                                                                                 </span>
-                                                                                {tableInfo.primaryKeys &&
-                                                                                    tableInfo
-                                                                                        .primaryKeys
-                                                                                        .length >
-                                                                                        0 && (
+                                                                                {Array.isArray(tableInfo.primaryKeys) &&
+                                                                                    tableInfo.primaryKeys.length > 0 && (
                                                                                         <span
                                                                                             className="text-[9px] px-1 border rounded"
                                                                                             style={{
@@ -828,27 +725,24 @@ export default function DatabaseTree({
                 {!workspaceMode &&
                     Object.entries(filteredGroupedTables).map(
                         ([schema, tables]) => (
-                            <div key={schema} className="mb-2">
+                            <div key={schema} className="mb-1">
                                 <button
                                     onClick={() => toggleStandardSchema(schema)}
-                                    className="w-full text-[10px] uppercase tracking-wider px-2 py-1 flex items-center gap-2 hover:bg-[var(--panel)] rounded"
-                                    style={{ color: "var(--text-muted)" }}
+                                    className="w-full text-[10px] uppercase tracking-widest px-2 py-1 flex items-center gap-1.5 transition-colors"
+                                    style={{ color: "#3a5570" }}
+                                    onMouseEnter={(e) => { e.currentTarget.style.color = "#6a8aaa"; }}
+                                    onMouseLeave={(e) => { e.currentTarget.style.color = "#3a5570"; }}
                                 >
-                                    <span
-                                        className={`text-[8px] transition-transform inline-block ${
-                                            expandedStandardSchemas.has(
-                                                schema,
-                                            ) || normalizedSearch
-                                                ? "rotate-90"
-                                                : ""
-                                        }`}
-                                    ></span>
+                                    <svg
+                                        width="6" height="6" viewBox="0 0 8 8" fill="currentColor"
+                                        style={{ flexShrink: 0, transition: "transform 0.15s", transform: (expandedStandardSchemas.has(schema) || !!normalizedSearch) ? "rotate(90deg)" : "rotate(0deg)" }}
+                                    >
+                                        <polygon points="0,0 8,4 0,8" />
+                                    </svg>
                                     <Icon type="schema" />
-                                    {schema === "public"
-                                        ? "TABLES"
-                                        : schema.toUpperCase()}
-                                    <span className="ml-auto text-[9px]">
-                                        ({tables.length})
+                                    {schema === "public" ? "tables" : schema}
+                                    <span className="ml-auto" style={{ color: "#1e3048" }}>
+                                        {tables.length}
                                     </span>
                                 </button>
                                 {(expandedStandardSchemas.has(schema) ||
@@ -870,59 +764,16 @@ export default function DatabaseTree({
                                                 <div key={tableKey}>
                                                     <div className="flex items-center group">
                                                         <button
-                                                            onClick={() =>
-                                                                toggleTable(
-                                                                    tableKey,
-                                                                )
-                                                            }
-                                                            className="p-1 hover:opacity-70 transition-opacity flex-shrink-0"
-                                                            style={{
-                                                                color: "var(--text-muted)",
-                                                            }}
+                                                            onClick={() => toggleTable(tableKey)}
+                                                            className="p-1 flex-shrink-0 transition-opacity hover:opacity-80"
+                                                            style={{ color: "#2a3f50" }}
                                                         >
-                                                            <span
-                                                                className={`text-[10px] transition-transform inline-block ${
-                                                                    isExpanded
-                                                                        ? "rotate-90"
-                                                                        : ""
-                                                                }`}
-                                                                style={{
-                                                                    transformOrigin:
-                                                                        "center",
-                                                                }}
+                                                            <svg
+                                                                width="6" height="6" viewBox="0 0 8 8" fill="currentColor"
+                                                                style={{ transition: "transform 0.15s", transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)" }}
                                                             >
-                                                                <svg
-                                                                    viewBox="-1.59 0 26.804 26.804"
-                                                                    xmlns="http://www.w3.org/2000/svg"
-                                                                    fill="#000000"
-                                                                >
-                                                                    <g
-                                                                        id="SVGRepo_bgCarrier"
-                                                                        stroke-width="0"
-                                                                    ></g>
-                                                                    <g
-                                                                        id="SVGRepo_tracerCarrier"
-                                                                        stroke-linecap="round"
-                                                                        stroke-linejoin="round"
-                                                                    ></g>
-                                                                    <g id="SVGRepo_iconCarrier">
-                                                                        {" "}
-                                                                        <g
-                                                                            id="Group_37"
-                                                                            data-name="Group 37"
-                                                                            transform="translate(-108.142 -942.014)"
-                                                                        >
-                                                                            {" "}
-                                                                            <path
-                                                                                id="Path_17"
-                                                                                data-name="Path 17"
-                                                                                d="M109.642,968.818a1.5,1.5,0,0,1-1.5-1.5v-23.8a1.5,1.5,0,0,1,2.25-1.3l20.616,11.9a1.5,1.5,0,0,1,0,2.6l-20.616,11.9A1.5,1.5,0,0,1,109.642,968.818Zm1.5-22.707V964.72l16.116-9.3Z"
-                                                                                fill="#f3f3f3"
-                                                                            ></path>{" "}
-                                                                        </g>{" "}
-                                                                    </g>
-                                                                </svg>
-                                                            </span>
+                                                                <polygon points="0,0 8,4 0,8" />
+                                                            </svg>
                                                         </button>
                                                         <button
                                                             onClick={() =>
@@ -930,25 +781,15 @@ export default function DatabaseTree({
                                                                     table,
                                                                 )
                                                             }
-                                                            className="flex-1 text-left px-2 py-1 text-[12px] transition-colors flex items-center gap-2 min-w-0 rounded"
-                                                            style={{
-                                                                color: "var(--text-primary)",
+                                                            className="flex-1 text-left px-2 py-1 text-[11px] transition-colors flex items-center gap-2 min-w-0"
+                                                            style={{ color: "#7a9ab0" }}
+                                                            onMouseEnter={(e) => {
+                                                                e.currentTarget.style.background = "rgba(0,229,255,0.04)";
+                                                                e.currentTarget.style.color = "var(--cyan)";
                                                             }}
-                                                            onMouseEnter={(
-                                                                e,
-                                                            ) => {
-                                                                e.currentTarget.style.background =
-                                                                    "var(--panel)";
-                                                                e.currentTarget.style.color =
-                                                                    "var(--accent)";
-                                                            }}
-                                                            onMouseLeave={(
-                                                                e,
-                                                            ) => {
-                                                                e.currentTarget.style.background =
-                                                                    "transparent";
-                                                                e.currentTarget.style.color =
-                                                                    "var(--text-primary)";
+                                                            onMouseLeave={(e) => {
+                                                                e.currentTarget.style.background = "transparent";
+                                                                e.currentTarget.style.color = "#7a9ab0";
                                                             }}
                                                             title="Preview table data"
                                                         >
@@ -963,11 +804,8 @@ export default function DatabaseTree({
                                                             <span className="truncate">
                                                                 {table.name}
                                                             </span>
-                                                            {table.primaryKeys &&
-                                                                table
-                                                                    .primaryKeys
-                                                                    .length >
-                                                                    0 && (
+                                                            {Array.isArray(table.primaryKeys) &&
+                                                                table.primaryKeys.length > 0 && (
                                                                     <span
                                                                         className="text-[9px] px-1 border rounded"
                                                                         style={{
