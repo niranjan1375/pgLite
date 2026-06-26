@@ -33,8 +33,13 @@ import {
     extractVariables,
     selectionOverlapsVariableBlock,
     validateVariableValues,
-    validateVariableReferences,
 } from "@/lib/workspace-utils";
+import {
+    findActiveProfile,
+    pickReferencedVariables,
+    resolveVariables,
+    type ContextProfile,
+} from "@/lib/variable-resolver";
 import { RefreshIcon } from "@/icons";
 
 const SQLEditor = dynamic(() => import("@/components/SQLEditor"), {
@@ -46,6 +51,7 @@ const QueryTabs = dynamic(() => import("@/components/QueryTabs"), {
 });
 
 const WORKSPACE_QUERY_TIMEOUT_MS = 120000;
+const ACTIVE_CONTEXT_PROFILE_KEY = "pgLite_activeContextProfile";
 
 interface QueryResult {
     rows: Record<string, unknown>[];
@@ -205,6 +211,14 @@ export default function Home() {
         useState<TableViewerState | null>(null);
     const [saveQueryModalOpen, setSaveQueryModalOpen] = useState(false);
     const [saveQueryModalSeed, setSaveQueryModalSeed] = useState(0);
+    // Context: shared, env-scoped variables (workspace mode). Definitions are
+    // shared (server file); the active-profile choice is per-user (localStorage).
+    const [contextProfiles, setContextProfiles] = useState<ContextProfile[]>(
+        [],
+    );
+    const [activeContextProfileId, setActiveContextProfileId] = useState<
+        string | null
+    >(null);
 
     // Use refs to track in-flight requests and cache
     const databasesCacheRef = useRef<Record<string, string[]>>({});
@@ -260,6 +274,65 @@ export default function Home() {
 
         fetchEnvironments();
     }, []);
+
+    // Load Context profiles (shared, env-scoped variables) + the per-user
+    // active-profile selection.
+    useEffect(() => {
+        const fetchContexts = async () => {
+            try {
+                const res = await fetch("/api/contexts", { cache: "no-store" });
+                const data = await res.json();
+                if (Array.isArray(data?.profiles)) {
+                    setContextProfiles(data.profiles);
+                }
+            } catch (err) {
+                console.error("Failed to fetch contexts:", err);
+            }
+        };
+
+        try {
+            const stored = localStorage.getItem(ACTIVE_CONTEXT_PROFILE_KEY);
+            if (stored) setActiveContextProfileId(stored);
+        } catch {
+            // localStorage unavailable — fall back to first profile at resolve time.
+        }
+
+        fetchContexts();
+    }, []);
+
+    // Build the variables payload for a workspace run: merge the active
+    // Context profile's values for the env with locally-declared @vars (local
+    // wins), then keep only the variables the SQL actually references.
+    const buildWorkspaceVariables = useCallback(
+        (
+            sql: string,
+            localVariables: Record<string, string>,
+            environment: string,
+        ): Record<string, string> => {
+            const profile = findActiveProfile(
+                contextProfiles,
+                activeContextProfileId,
+            );
+            const effective = resolveVariables({
+                profile,
+                local: localVariables,
+                environment,
+            });
+            const { picked, missing } = pickReferencedVariables(sql, effective);
+            if (missing.length > 0) {
+                throw new Error(
+                    `SQL references undefined variables: ${missing
+                        .map((name) => `@${name}`)
+                        .join(", ")}`,
+                );
+            }
+            if (Object.keys(picked).length > 0) {
+                validateVariableValues(picked);
+            }
+            return picked;
+        },
+        [contextProfiles, activeContextProfileId],
+    );
 
     useEffect(() => {
         if (typeof window === "undefined") {
@@ -1353,14 +1426,14 @@ export default function Home() {
 
             if (currentTab.mode === "workspace") {
                 try {
-                    const { variables, sqlWithoutVars } = extractVariables(
-                        currentTab.query,
-                    );
+                    const { variables: localVariables, sqlWithoutVars } =
+                        extractVariables(currentTab.query);
 
-                    if (Object.keys(variables).length > 0) {
-                        validateVariableValues(variables);
-                        validateVariableReferences(sqlWithoutVars, variables);
-                    }
+                    const variables = buildWorkspaceVariables(
+                        sqlWithoutVars,
+                        localVariables,
+                        currentTab.environment,
+                    );
 
                     await runQuery(
                         sqlWithoutVars,
@@ -1391,7 +1464,7 @@ export default function Home() {
                 explain,
             );
         },
-        [runQuery],
+        [runQuery, buildWorkspaceVariables],
     );
 
     // Fetch databases for a specific environment
@@ -1634,9 +1707,10 @@ export default function Home() {
                                                     "workspace"
                                                 ) {
                                                     try {
-                                                        // Extract variables from full editor content
+                                                        // Extract locally-declared variables from full editor content
                                                         const {
-                                                            variables,
+                                                            variables:
+                                                                localVariables,
                                                             variableBlockEndLine,
                                                         } = extractVariables(
                                                             currentTab.query,
@@ -1666,20 +1740,13 @@ export default function Home() {
                                                             );
                                                         }
 
-                                                        // Validate variable values if any exist
-                                                        if (
-                                                            Object.keys(
-                                                                variables,
-                                                            ).length > 0
-                                                        ) {
-                                                            validateVariableValues(
-                                                                variables,
-                                                            );
-                                                            validateVariableReferences(
+                                                        // Merge Context + local vars, keep only referenced ones
+                                                        const variables =
+                                                            buildWorkspaceVariables(
                                                                 sqlToExecute,
-                                                                variables,
+                                                                localVariables,
+                                                                currentTab.environment,
                                                             );
-                                                        }
 
                                                         // Execute with structured payload
                                                         runQuery(
