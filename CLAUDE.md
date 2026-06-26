@@ -71,9 +71,24 @@ Seven environments configured: `loadtest`, `sandbox`, `staging`, `vegapay-uat-sn
 - **Caching:** Schema/table/column metadata cached in-memory (5–60s TTL). Pass `forceRefresh=true` to bypass.
 - **Template variables:** `@varName = value` syntax at top of SQL, substituted server-side before execution.
 - **Workspace mode:** Prefix queries with `dbname.` to route to a specific database; regex-extracts DB name and switches pool.
-- **Safety:** Read-only toggle blocks write operations. Production writes require confirmation dialog. Row limit is 10K.
+- **Safety:** Read-only toggle blocks writes **in standard mode only** (`/api/query`) — `/api/workspace-query` currently has NO write protection (known gap G3). Production writes require a confirmation dialog. Row limit is 10K: large result sets are **truncated and flagged** (`truncated`/`totalRows`), not rejected.
 - **Virtual scrolling:** `ResultsTable` renders only visible rows; overscan = 15 rows.
 - **Dynamic imports:** `SQLEditor` and `QueryTabs` are lazy-loaded (Monaco requires CSR).
+
+## Current State & Findings
+
+See **`docs/REPO_FINDINGS.md`** for the verified codebase map, real issue
+statuses, gaps, and the next-task backlog (snapshot 2026-06-26, branch
+`feat/v2-wip`).
+
+- **The `issues/` tracker is stale.** Re-verified against code: P0-003 (timeout),
+  P0-005 (workspace pool leak), P1-005 (workspace row cap), and P2-002 (EXPLAIN
+  UI) are all **already fixed** despite being marked Open there.
+- **Still genuinely open:** P0-004 (no API auth), P0-006 (TLS verify disabled),
+  P2-003 / workspace write protection (gap G3), P1-003 (query cancellation),
+  P1-004 (rate limiting), P1-002 (observability).
+- **Dead code:** `components/EnvironmentSelector.tsx` is unused (superseded by
+  `EnvironmentStrip.tsx`).
 
 ## Code Style
 

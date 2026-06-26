@@ -144,11 +144,10 @@ FETCH 1000 FROM cursor;
 
 ## Verification
 
-- [x] Query exceeding 10K rows returns 413 error
-- [x] Error message explains limit and suggests LIMIT clause
-- [x] UI shows warning: "⚠️ Results limited to X rows. Refine your query..."
-- [x] `truncated` flag properly propagated from API to UI
-- [ ] Performance test: `SELECT * FROM generate_series(1, 100000)` returns 413
+- [x] ~~Query exceeding 10K rows returns 413 error~~ → now truncates to 10K and returns rows (see Update 2026-06-26)
+- [x] UI shows warning banner with first-N-of-total rows when truncated
+- [x] `truncated` + `totalRows` flags properly propagated from API to UI
+- [ ] Performance test: `SELECT * FROM generate_series(1, 100000)` returns first 10K with banner
 
 ---
 
@@ -156,3 +155,29 @@ FETCH 1000 FROM cursor;
 
 - P2-001 (cursor streaming) is long-term proper fix
 - This is short-term safety guard
+
+---
+
+## Update (2026-06-26): reject → truncate-and-show
+
+**Problem with the original fix:** returning a `413` error on `>10K` rows
+showed the user *nothing* — they had to manually add a `LIMIT` and re-run
+just to see any data. Worse, the rows were already fully materialized in
+memory by the time the count check ran (`pool.query()` returns the whole
+result set), so the 413 gave **no memory benefit** — it only discarded work
+already done. The frontend's "RESULTS TRUNCATED" banner was effectively dead
+code because the API never returned truncated rows.
+
+**What changed:** both `app/api/query/route.ts` and
+`app/api/workspace-query/route.ts` now **truncate to the first `MAX_ROWS`
+and return them** with `truncated: true` plus a new `totalRows` field (the
+full pre-truncation count), instead of erroring. The banner now reads:
+`⚠ RESULTS TRUNCATED — SHOWING FIRST 10,000 OF 32,965 ROWS · ADD A LIMIT
+CLAUSE TO REFINE`.
+
+**Files modified:** `app/api/query/route.ts`,
+`app/api/workspace-query/route.ts`, `app/page.tsx` (added `totalRows` to
+`QueryResult`, updated banner). Commit `169e3cf` on `feat/v2-wip`.
+
+**Still outstanding:** DB-side memory is *not* bounded — all rows are still
+fetched before slicing. See P2-001 for the decision on the real fix.
