@@ -50,6 +50,7 @@ const WORKSPACE_QUERY_TIMEOUT_MS = 120000;
 interface QueryResult {
     rows: Record<string, unknown>[];
     rowCount: number;
+    totalRows?: number; // Full row count before truncation (present when truncated)
     fields: string[];
     truncated?: boolean;
     routedDatabase?: string; // Present when workspace mode auto-routes to a database
@@ -1845,8 +1846,12 @@ export default function Home() {
                                         color: "var(--warning)",
                                     }}
                                 >
-                                    ⚠ RESULTS TRUNCATED AT{" "}
-                                    {result.rowCount.toLocaleString()} ROWS
+                                    ⚠ RESULTS TRUNCATED — SHOWING FIRST{" "}
+                                    {result.rowCount.toLocaleString()}
+                                    {result.totalRows
+                                        ? ` OF ${result.totalRows.toLocaleString()}`
+                                        : ""}{" "}
+                                    ROWS · ADD A LIMIT CLAUSE TO REFINE
                                 </div>
                             )}
                             <div className="flex-1 min-h-0">

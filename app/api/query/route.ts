@@ -120,24 +120,18 @@ export async function POST(req: NextRequest) {
             });
         }
 
-        // Enforce row limit to prevent DoS and memory overflow
-        if (result.rows.length > MAX_ROWS) {
-            return NextResponse.json(
-                {
-                    error: `Query returned ${result.rows.length.toLocaleString()} rows (limit: ${MAX_ROWS.toLocaleString()}). Please add a LIMIT clause to reduce the result set.`,
-                    rowCount: result.rows.length,
-                    truncated: true,
-                },
-                { status: 413 }, // Payload Too Large
-            );
-        }
+        // Cap the result set to keep payload/render bounded. Truncate and flag
+        // rather than rejecting, so the user still sees the first MAX_ROWS rows.
+        const truncated = result.rows.length > MAX_ROWS;
+        const rows = truncated ? result.rows.slice(0, MAX_ROWS) : result.rows;
 
         return NextResponse.json({
-            rows: result.rows,
-            rowCount: result.rowCount ?? 0,
+            rows,
+            rowCount: rows.length,
+            totalRows: result.rows.length,
             fields: result.fields.map((f) => f.name),
             fieldTypes: result.fields.map((f) => f.dataTypeID),
-            truncated: false,
+            truncated,
             executionTime,
         });
     } catch (err: unknown) {

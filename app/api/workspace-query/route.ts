@@ -280,24 +280,22 @@ export async function POST(request: NextRequest) {
                 });
             }
 
-            if (result.rows.length > MAX_ROWS) {
-                return NextResponse.json(
-                    {
-                        error: `Query returned ${result.rows.length.toLocaleString()} rows (limit: ${MAX_ROWS.toLocaleString()}). Please add a LIMIT clause to reduce the result set.`,
-                        rowCount: result.rows.length,
-                        truncated: true,
-                    },
-                    { status: 413 },
-                );
-            }
-
             // Check if this is a data-returning query
             if (result.rows && result.fields) {
+                // Cap the result set, but truncate-and-flag rather than reject
+                // so the user still sees the first MAX_ROWS rows.
+                const truncated = result.rows.length > MAX_ROWS;
+                const rows = truncated
+                    ? result.rows.slice(0, MAX_ROWS)
+                    : result.rows;
+
                 return NextResponse.json({
-                    rows: result.rows,
-                    rowCount: result.rowCount || result.rows.length,
+                    rows,
+                    rowCount: rows.length,
+                    totalRows: result.rows.length,
                     fields: result.fields.map((f) => f.name),
                     fieldTypes: result.fields.map((f) => f.dataTypeID),
+                    truncated,
                     routedDatabase,
                 });
             }
