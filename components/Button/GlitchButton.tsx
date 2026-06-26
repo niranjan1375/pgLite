@@ -18,7 +18,7 @@ export default function GlitchButton({
     disabled = false,
     className = "",
 }: GlitchButtonProps) {
-    const handleClick = (e: React.MouseEvent) => {
+    const handleClick = () => {
         if (disabled) return;
         onClick?.();
     };

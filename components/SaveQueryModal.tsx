@@ -25,7 +25,7 @@ export default function SaveQueryModal({
     onSave,
     onCancel,
 }: SaveQueryModalProps) {
-    const [name, setName] = useState("");
+    const [name, setName] = useState(initialName);
     const [folder, setFolder] = useState("");
     const [tags, setTags] = useState("");
     const [starred, setStarred] = useState(false);
