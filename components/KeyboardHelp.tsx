@@ -28,6 +28,7 @@ export default function KeyboardHelp() {
         { keys: ["?"], description: "Open keyboard help" },
         { keys: ["⌘", "H"], description: "Toggle query history" },
         { keys: ["⌘", "J"], description: "Toggle saved queries" },
+        { keys: ["⌘", "G"], description: "Toggle context" },
         { keys: ["Esc"], description: "Close menu/dialog" },
         { keys: ["⌘", "T"], description: "New tab" },
         { keys: ["⌘", "W"], description: "Close tab" },

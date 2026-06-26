@@ -4,9 +4,11 @@ interface ActivityBarProps {
     sidebarCollapsed: boolean;
     historyOpen: boolean;
     savedQueriesOpen: boolean;
+    contextOpen: boolean;
     onToggleSidebar: () => void;
     onToggleHistory: () => void;
     onToggleSavedQueries: () => void;
+    onToggleContext: () => void;
 }
 
 function IconDatabase() {
@@ -32,6 +34,18 @@ function IconBookmark() {
     return (
         <svg width="17" height="17" viewBox="0 0 17 17" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
             <path d="M4 2.5h9v12.5L8.5 12l-4.5 3V2.5z" />
+        </svg>
+    );
+}
+
+function IconVariable() {
+    // {x} — shared variables / context
+    return (
+        <svg width="17" height="17" viewBox="0 0 17 17" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M6 2.5C4 2.5 4 5 4 6.5S4 10.5 2.5 10.5" />
+            <path d="M6 14.5C4 14.5 4 12 4 10.5" />
+            <path d="M11 2.5c2 0 2 2.5 2 4s0 4 1.5 4" />
+            <path d="M11 14.5c2 0 2-2.5 2-4" />
         </svg>
     );
 }
@@ -73,9 +87,11 @@ export default function ActivityBar({
     sidebarCollapsed,
     historyOpen,
     savedQueriesOpen,
+    contextOpen,
     onToggleSidebar,
     onToggleHistory,
     onToggleSavedQueries,
+    onToggleContext,
 }: ActivityBarProps) {
     return (
         <div
@@ -110,6 +126,14 @@ export default function ActivityBar({
                 title={savedQueriesOpen ? "Hide saved queries (⌘J)" : "Show saved queries (⌘J)"}
             >
                 <IconBookmark />
+            </ActivityButton>
+
+            <ActivityButton
+                active={contextOpen}
+                onClick={onToggleContext}
+                title={contextOpen ? "Hide context (⌘G)" : "Show context (⌘G)"}
+            >
+                <IconVariable />
             </ActivityButton>
         </div>
     );

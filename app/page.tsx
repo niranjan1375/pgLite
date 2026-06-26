@@ -20,6 +20,7 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import QueryHistory, { type QueryHistoryItem } from "@/components/QueryHistory";
 import SaveQueryModal from "@/components/SaveQueryModal";
 import SavedQueries from "@/components/SavedQueries";
+import ContextPanel from "@/components/ContextPanel";
 import { type QueryTab, type QueryTabsRef } from "@/components/QueryTabs";
 import {
     createSavedQuery,
@@ -205,6 +206,7 @@ export default function Home() {
     const [dbLatency, setDbLatency] = useState<number | undefined>();
     const [historyOpen, setHistoryOpen] = useState(false);
     const [savedQueriesOpen, setSavedQueriesOpen] = useState(false);
+    const [contextOpen, setContextOpen] = useState(false);
     const [queryHistory, setQueryHistory] = useState<QueryHistoryItem[]>([]);
     const [savedQueries, setSavedQueries] = useState<SavedQuery[]>([]);
     const [tableViewerState, setTableViewerState] =
@@ -332,6 +334,33 @@ export default function Home() {
             return picked;
         },
         [contextProfiles, activeContextProfileId],
+    );
+
+    const handleSetActiveContextProfile = useCallback((id: string) => {
+        setActiveContextProfileId(id);
+        try {
+            localStorage.setItem(ACTIVE_CONTEXT_PROFILE_KEY, id);
+        } catch {
+            // localStorage unavailable — selection stays in-memory for the session.
+        }
+    }, []);
+
+    const handleSaveContexts = useCallback(
+        async (profiles: ContextProfile[]) => {
+            const res = await fetch("/api/contexts", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ version: 1, profiles }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data?.error || "Failed to save context.");
+            }
+            setContextProfiles(
+                Array.isArray(data?.profiles) ? data.profiles : [],
+            );
+        },
+        [],
     );
 
     useEffect(() => {
@@ -1579,14 +1608,22 @@ export default function Home() {
                 sidebarCollapsed={sidebarCollapsed}
                 historyOpen={historyOpen}
                 savedQueriesOpen={savedQueriesOpen}
+                contextOpen={contextOpen}
                 onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
                 onToggleHistory={() => {
                     setHistoryOpen((prev) => !prev);
                     setSavedQueriesOpen(false);
+                    setContextOpen(false);
                 }}
                 onToggleSavedQueries={() => {
                     setSavedQueriesOpen((prev) => !prev);
                     setHistoryOpen(false);
+                    setContextOpen(false);
+                }}
+                onToggleContext={() => {
+                    setContextOpen((prev) => !prev);
+                    setHistoryOpen(false);
+                    setSavedQueriesOpen(false);
                 }}
             />
 
@@ -1980,6 +2017,21 @@ export default function Home() {
                         onSelectQuery={handleSelectSavedQuery}
                         onDeleteItem={deleteSavedQuery}
                         onToggleStar={handleToggleSavedQueryStar}
+                    />
+
+                    <ContextPanel
+                        isOpen={contextOpen}
+                        onToggle={() => {
+                            setContextOpen((prev) => !prev);
+                            setHistoryOpen(false);
+                            setSavedQueriesOpen(false);
+                        }}
+                        profiles={contextProfiles}
+                        activeProfileId={activeContextProfileId}
+                        environmentIds={availableEnvironmentIds}
+                        environmentNamesById={environmentNamesById}
+                        onSetActiveProfile={handleSetActiveContextProfile}
+                        onSave={handleSaveContexts}
                     />
                 </div>
 
