@@ -479,13 +479,17 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
                         key={tab.id}
                         onClick={() => setActiveTabId(tab.id)}
                         onDoubleClick={() => renameTab(tab.id)}
-                        className="relative flex items-center gap-1.5 h-full text-[11px] uppercase tracking-wide transition-all shrink-0"
+                        className="relative flex items-center gap-1.5 h-full text-[12px] transition-all shrink-0"
                         style={{
                             padding: "0 14px",
                             color: isActive ? envColor : "var(--text-muted)",
-                            background: isActive ? "var(--panel)" : "transparent",
+                            background: isActive
+                                ? "var(--panel)"
+                                : "transparent",
                             borderRight: "1px solid var(--border)",
-                            borderBottom: isActive ? `2px solid ${envColor}` : "2px solid transparent",
+                            borderBottom: isActive
+                                ? `2px solid ${envColor}`
+                                : "2px solid transparent",
                         }}
                         title="Double-click to rename"
                     >
@@ -535,7 +539,10 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
             <button
                 onClick={addTab}
                 className="flex items-center justify-center h-full px-3 text-[16px] transition-all hover:bg-white/5 shrink-0"
-                style={{ color: "var(--text-muted)", borderRight: "1px solid var(--border)" }}
+                style={{
+                    color: "var(--text-muted)",
+                    borderRight: "1px solid var(--border)",
+                }}
                 title="New standard tab (⌘T)"
             >
                 +
@@ -552,10 +559,12 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
                 }}
                 title="New workspace tab — auto-routes to DB based on table prefix"
             >
-                <span style={{ color: "var(--accent)", fontSize: "8px" }}>◆</span>
+                <span style={{ color: "var(--accent)", fontSize: "8px" }}>
+                    ◆
+                </span>
                 WS
             </button>
-
+            {/* 
             <button
                 onClick={formatActiveTabQuery}
                 className="flex items-center h-full px-3 text-[10px] uppercase tracking-widest font-bold transition-all hover:bg-white/5 shrink-0"
@@ -563,7 +572,7 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
                 title="Format SQL (prettify)"
             >
                 FMT
-            </button>
+            </button> */}
         </div>
     );
 });

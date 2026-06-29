@@ -135,7 +135,7 @@ export default function ResultsTable({
     }, []);
 
     // Virtual scrolling constants
-    const ROW_HEIGHT = density === "compact" ? 32 : 41;
+    const ROW_HEIGHT = density === "compact" ? 26 : 32;
     const OVERSCAN = 15; // Extra rows to render above/below viewport for smooth scrolling
 
     // Derive column widths with defaults
@@ -662,7 +662,7 @@ export default function ResultsTable({
                             borderColor: "var(--border)",
                             color: "var(--text-muted)",
                         }}
-                        title={`Density: ${density === "default" ? "41px" : "32px"} rows`}
+                        title={`Density: ${density === "default" ? "32px" : "26px"} rows`}
                     >
                         {density === "default" ? "COMPACT" : "DEFAULT"}
                     </button>
@@ -864,7 +864,7 @@ export default function ResultsTable({
                                 background: "var(--panel-elevated)",
                                 borderRight: "1px solid var(--grid-line)",
                                 borderBottom: "1px solid var(--border-bright)",
-                                color: "#6a8aaa",
+                                color: "var(--text-muted)",
                             }}
                         >
                             Actions
@@ -890,28 +890,26 @@ export default function ResultsTable({
                                     onContextMenu={(e) => { e.preventDefault(); toggleColumnVisibility(field); }}
                                 >
                                     <div
-                                        className="flex flex-col items-center justify-center gap-0.5 cursor-pointer hover:opacity-80 transition-opacity px-3 py-1.5"
+                                        className="flex items-baseline gap-2 cursor-pointer hover:opacity-80 transition-opacity px-3 py-1.5"
                                         onClick={() => handleSort(field)}
                                         title={isSortDisabled ? "Sort disabled — use ORDER BY" : "Click to sort · right-click to hide"}
                                         style={{ opacity: isSortDisabled ? 0.4 : 1 }}
                                     >
-                                        <div className="flex items-center gap-1">
-                                            <span
-                                                className="truncate text-[10px] tracking-widest uppercase font-medium"
-                                                style={{ color: isActiveSort ? "var(--cyan)" : "#6a8aaa" }}
-                                            >
-                                                {field}
+                                        <span
+                                            className="truncate text-[11px] font-semibold tracking-wide"
+                                            style={{ color: isActiveSort ? "var(--accent)" : "var(--text-muted)" }}
+                                        >
+                                            {field}
+                                        </span>
+                                        {isActiveSort && (
+                                            <span style={{ color: "var(--accent)", flexShrink: 0, fontSize: 10 }}>
+                                                {activeSortDirection === "asc" ? "↑" : "↓"}
                                             </span>
-                                            {isActiveSort && (
-                                                <span style={{ color: "var(--cyan)", flexShrink: 0, fontSize: 10 }}>
-                                                    {activeSortDirection === "asc" ? "↑" : "↓"}
-                                                </span>
-                                            )}
-                                        </div>
+                                        )}
                                         {colType && (
                                             <span
-                                                className="text-[9px] tracking-wide"
-                                                style={{ color: "#1e3a50" }}
+                                                className="text-[10px] ml-auto"
+                                                style={{ color: "var(--text-dim)" }}
                                             >
                                                 {colType}
                                             </span>
@@ -1028,8 +1026,8 @@ export default function ResultsTable({
                                                     width: colW,
                                                     minWidth: colW,
                                                     height: "100%",
-                                                    borderBottom: "1px solid #1a2840",
-                                                    borderRight: isLastField ? "none" : "1px solid #1a2840",
+                                                    borderBottom: "1px solid var(--grid-line)",
+                                                    borderRight: isLastField ? "none" : "1px solid var(--grid-line)",
                                                 }}
                                             >
                                                 {/* Cell text with truncation fade */}
@@ -1038,8 +1036,9 @@ export default function ResultsTable({
                                                     style={{ height: "100%", display: "flex", alignItems: "center" }}
                                                 >
                                                     <span
-                                                        className="truncate w-full text-center cursor-default"
+                                                        className="truncate w-full text-left cursor-default"
                                                         style={{
+                                                            fontFamily: "var(--font-mono)",
                                                             color: isNull ? "var(--text-dim)" : "var(--text-primary)",
                                                             fontStyle: isNull ? "italic" : "normal",
                                                         }}
