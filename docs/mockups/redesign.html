@@ -1,129 +1,105 @@
 <style>
   /* ============================================================
-     pgLite — "calm precision instrument" redesign mockup
-     Thesis: color encodes ENVIRONMENT, nothing else.
-     System sans for chrome · mono only for data/code · 4px scale
+     pgLite redesign mockup — same calm bones, swappable palette.
+     Structure/spacing fixed; only color tokens change per theme.
+     Themes: Tokyo Night · Dracula · Synthwave · Calm
+     Thesis kept: color encodes ENVIRONMENT; sans chrome / mono data.
      ============================================================ */
   :root {
-    /* chosen cool-neutral darks (not neon blue-black) */
-    --bg: #14171c;
-    --panel: #1a1f27;
-    --surface: #1e242d;
-    --surface-2: #232b35;
-    --hover: #262f3a;
-    --border: #2a313b;
-    --border-soft: #21272f;
-
-    --text: #dbe1e8;
-    --text-2: #99a4b1;
-    --text-3: #646e7b;
-
-    /* one calm UI accent — selection / focus / primary only */
-    --accent: #6ea8fe;
-    --accent-soft: rgba(110, 168, 254, 0.14);
-
-    /* color == environment (desaturated, the ONLY hues) */
-    --env-dev: #5cc98e;
-    --env-sandbox: #5bbfd0;
-    --env-loadtest: #5cc98e;
-    --env-staging: #e0a458;
-    --env-prod: #e0697a;
-    --ok: #5cc98e;
-    --warn: #e0a458;
-    --crit: #e0697a;
-
     --sans: -apple-system, "SF Pro Text", "Segoe UI", Roboto, system-ui, sans-serif;
     --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, "Cascadia Code", monospace;
-
     --r: 6px;
+  }
+
+  /* ---- THEME: Tokyo Night (default) ---- */
+  .app[data-theme="tokyo"] {
+    --bg:#1a1b26; --panel:#1f2233; --surface:#24283b; --surface-2:#2a2f44; --hover:#2f344d;
+    --border:#33384f; --border-soft:#262a3e;
+    --text:#c0caf5; --text-2:#9aa5ce; --text-3:#565f89;
+    --accent:#7aa2f7; --accent-soft:rgba(122,162,247,.16);
+    --env-dev:#9ece6a; --env-sandbox:#7dcfff; --env-loadtest:#9ece6a; --env-staging:#e0af68; --env-prod:#f7768e;
+    --ok:#9ece6a; --warn:#e0af68; --crit:#f7768e;
+    --syn-kw:#7aa2f7; --syn-fn:#bb9af7; --syn-str:#9ece6a; --syn-var:#e0af68;
+  }
+  /* ---- THEME: Dracula ---- */
+  .app[data-theme="dracula"] {
+    --bg:#21222c; --panel:#282a36; --surface:#2f313f; --surface-2:#343746; --hover:#3a3d4d;
+    --border:#424458; --border-soft:#313343;
+    --text:#f8f8f2; --text-2:#bfc7e0; --text-3:#6272a4;
+    --accent:#bd93f9; --accent-soft:rgba(189,147,249,.18);
+    --env-dev:#50fa7b; --env-sandbox:#8be9fd; --env-loadtest:#50fa7b; --env-staging:#ffb86c; --env-prod:#ff5555;
+    --ok:#50fa7b; --warn:#ffb86c; --crit:#ff5555;
+    --syn-kw:#ff79c6; --syn-fn:#bd93f9; --syn-str:#f1fa8c; --syn-var:#ffb86c;
+  }
+  /* ---- THEME: Synthwave ---- */
+  .app[data-theme="synthwave"] {
+    --bg:#19142b; --panel:#1f1a35; --surface:#262040; --surface-2:#2d2650; --hover:#332a5c;
+    --border:#3a3160; --border-soft:#2a2348;
+    --text:#f0eafc; --text-2:#b9aee0; --text-3:#7a6ca6;
+    --accent:#ff5dbd; --accent-soft:rgba(255,93,189,.16);
+    --env-dev:#72f1b8; --env-sandbox:#36f9f6; --env-loadtest:#72f1b8; --env-staging:#fede5d; --env-prod:#fb5d8f;
+    --ok:#72f1b8; --warn:#fede5d; --crit:#fb5d8f;
+    --syn-kw:#36f9f6; --syn-fn:#ff7edb; --syn-str:#fede5d; --syn-var:#ff8b39;
+  }
+  /* ---- THEME: Calm (the quiet baseline) ---- */
+  .app[data-theme="calm"] {
+    --bg:#14171c; --panel:#1a1f27; --surface:#1e242d; --surface-2:#232b35; --hover:#262f3a;
+    --border:#2a313b; --border-soft:#21272f;
+    --text:#dbe1e8; --text-2:#99a4b1; --text-3:#646e7b;
+    --accent:#6ea8fe; --accent-soft:rgba(110,168,254,.14);
+    --env-dev:#5cc98e; --env-sandbox:#5bbfd0; --env-loadtest:#5cc98e; --env-staging:#e0a458; --env-prod:#e0697a;
+    --ok:#5cc98e; --warn:#e0a458; --crit:#e0697a;
+    --syn-kw:#8ab4f8; --syn-fn:#c8a8e9; --syn-str:#8fce9b; --syn-var:#e0a458;
   }
 
   * { box-sizing: border-box; }
   html, body { height: 100%; }
-  body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--sans);
-    font-size: 12px;
-    line-height: 1.4;
-    -webkit-font-smoothing: antialiased;
-    overflow: hidden;
-  }
+  body { margin: 0; font-family: var(--sans); font-size: 12px; line-height: 1.4; -webkit-font-smoothing: antialiased; overflow: hidden; }
   .mono { font-family: var(--mono); }
   .tnum { font-variant-numeric: tabular-nums; }
   button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
-  /* ---------- shell ---------- */
-  .app { display: flex; flex-direction: column; height: 100vh; }
+  .app { background: var(--bg); color: var(--text); display: flex; flex-direction: column; height: 100vh; }
   .work { flex: 1; display: grid; grid-template-columns: 46px 256px 1fr; min-height: 0; }
 
-  /* ---------- activity bar ---------- */
-  .rail {
-    background: var(--bg);
-    border-right: 1px solid var(--border-soft);
-    display: flex; flex-direction: column; align-items: center;
-    padding-top: 8px; gap: 2px;
-  }
-  .rail button {
-    width: 46px; height: 42px; display: grid; place-items: center;
-    color: var(--text-3); position: relative;
-  }
+  /* activity bar */
+  .rail { background: var(--bg); border-right: 1px solid var(--border-soft); display: flex; flex-direction: column; align-items: center; padding-top: 8px; gap: 2px; }
+  .rail button { width: 46px; height: 42px; display: grid; place-items: center; color: var(--text-3); position: relative; }
   .rail button:hover { color: var(--text-2); }
   .rail button.on { color: var(--accent); }
-  .rail button.on::before {
-    content: ""; position: absolute; left: 0; top: 7px; bottom: 7px;
-    width: 2px; background: var(--accent); border-radius: 0 2px 2px 0;
-  }
+  .rail button.on::before { content: ""; position: absolute; left: 0; top: 7px; bottom: 7px; width: 2px; background: var(--accent); border-radius: 0 2px 2px 0; }
   .rail svg { width: 18px; height: 18px; }
 
-  /* ---------- explorer ---------- */
+  /* explorer */
   .explorer { background: var(--panel); border-right: 1px solid var(--border-soft); display: flex; flex-direction: column; min-height: 0; }
   .ex-head { padding: 10px 12px 8px; display: flex; flex-direction: column; gap: 8px; }
   .ex-title { display: flex; align-items: baseline; justify-content: space-between; }
   .ex-title b { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-2); font-weight: 600; }
   .ex-title span { font-size: 10.5px; color: var(--text-3); }
-  .search {
-    display: flex; align-items: center; gap: 7px;
-    background: var(--surface); border: 1px solid var(--border); border-radius: var(--r);
-    padding: 6px 9px; color: var(--text-3);
-  }
+  .search { display: flex; align-items: center; gap: 7px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 6px 9px; color: var(--text-3); }
   .search input { background: none; border: 0; outline: none; color: var(--text); width: 100%; font-size: 12px; }
   .search input::placeholder { color: var(--text-3); }
-
   .group-label { font-size: 10px; letter-spacing: .09em; text-transform: uppercase; color: var(--text-3); padding: 10px 12px 4px; font-weight: 600; }
-
   .tree { overflow-y: auto; padding-bottom: 16px; flex: 1; }
-  .node {
-    display: flex; align-items: center; gap: 7px;
-    padding: 4px 12px; color: var(--text-2); cursor: default; position: relative;
-  }
+  .node { display: flex; align-items: center; gap: 7px; padding: 4px 12px; color: var(--text-2); position: relative; }
   .node:hover { background: var(--surface); }
   .node.sel { background: var(--accent-soft); color: var(--text); }
   .node.sel::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--accent); }
-  .node .chev { width: 10px; color: var(--text-3); flex: none; transition: transform .12s; }
+  .node .chev { width: 10px; color: var(--text-3); flex: none; }
   .node.open .chev { transform: rotate(90deg); }
   .node .nm { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .node .ct { color: var(--text-3); font-size: 11px; }
   .node.l2 { padding-left: 30px; }
-  .node.l2 .ico { color: var(--text-3); }
-  .ico { width: 13px; height: 13px; flex: none; opacity: .8; }
-
+  .ico { width: 13px; height: 13px; flex: none; opacity: .8; color: var(--text-3); }
   .tmpl { display: flex; align-items: center; gap: 8px; padding: 4px 12px; color: var(--text-2); }
   .tmpl:hover { background: var(--surface); }
   .tmpl .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--text-3); flex: none; }
 
-  /* ---------- main ---------- */
+  /* main */
   .main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-
-  /* tabs */
   .tabs { display: flex; align-items: stretch; background: var(--bg); border-bottom: 1px solid var(--border-soft); height: 36px; overflow: hidden; }
-  .tab {
-    display: flex; align-items: center; gap: 8px; padding: 0 12px; max-width: 190px;
-    color: var(--text-3); border-right: 1px solid var(--border-soft);
-    position: relative; white-space: nowrap;
-  }
+  .tab { display: flex; align-items: center; gap: 8px; padding: 0 12px; max-width: 190px; color: var(--text-3); border-right: 1px solid var(--border-soft); position: relative; white-space: nowrap; }
   .tab:hover { color: var(--text-2); background: var(--panel); }
   .tab .envdot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
   .tab .lbl { overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
@@ -134,10 +110,9 @@
   .tab .ro { font-size: 9px; color: var(--text-3); border: 1px solid var(--border); border-radius: 3px; padding: 0 3px; letter-spacing: .04em; }
   .tab-overflow { display: grid; place-items: center; width: 34px; color: var(--text-3); }
 
-  /* toolbar */
   .toolbar { display: flex; align-items: center; gap: 8px; padding: 7px 12px; border-bottom: 1px solid var(--border-soft); background: var(--panel); }
   .chip { display: inline-flex; align-items: center; gap: 7px; padding: 4px 9px; border-radius: var(--r); border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 11.5px; }
-  .chip .envdot { width: 7px; height: 7px; border-radius: 50%; box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 18%, transparent); }
+  .chip .envdot { width: 7px; height: 7px; border-radius: 50%; }
   .chip.env { font-weight: 600; letter-spacing: .03em; color: var(--c); }
   .chip .caret { color: var(--text-3); }
   .pill { font-size: 10.5px; font-weight: 600; letter-spacing: .04em; padding: 3px 7px; border-radius: 4px; border: 1px solid var(--border); color: var(--text-2); }
@@ -145,33 +120,30 @@
   .conn { display: inline-flex; align-items: center; gap: 6px; color: var(--text-3); font-size: 11px; }
   .ledon { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 6px color-mix(in srgb, var(--ok) 60%, transparent); }
 
-  /* editor */
   .editor { background: var(--bg); flex: 0 0 38%; min-height: 0; display: grid; grid-template-columns: 48px 1fr; overflow: auto; }
   .gutter { text-align: right; color: var(--text-3); padding: 12px 10px 12px 0; font-family: var(--mono); font-size: 12px; user-select: none; line-height: 1.7; }
   .gutter .runln { color: var(--accent); }
   .code { padding: 12px 16px; font-family: var(--mono); font-size: 12.5px; line-height: 1.7; white-space: pre; color: var(--text); }
-  .kw { color: #8ab4f8; }
-  .fn { color: #c8a8e9; }
-  .str { color: #8fce9b; }
-  .var { color: #e0a458; }
+  .kw { color: var(--syn-kw); }
+  .fn { color: var(--syn-fn); }
+  .str { color: var(--syn-str); }
+  .var { color: var(--syn-var); }
   .id { color: var(--text); }
   .dim { color: var(--text-3); }
 
-  /* run bar */
   .runbar { display: flex; align-items: center; gap: 16px; padding: 7px 14px; border-top: 1px solid var(--border-soft); border-bottom: 1px solid var(--border-soft); background: var(--panel); }
   .link { color: var(--text-2); font-size: 11.5px; }
   .link:hover { color: var(--text); }
   .toggle { display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); font-size: 11.5px; }
   .toggle .sw { width: 22px; height: 13px; border-radius: 7px; background: var(--surface-2); border: 1px solid var(--border); position: relative; }
   .toggle.on .sw { background: var(--accent-soft); border-color: var(--accent); }
-  .toggle .sw::after { content: ""; position: absolute; top: 1px; left: 1px; width: 9px; height: 9px; border-radius: 50%; background: var(--text-2); transition: .12s; }
+  .toggle .sw::after { content: ""; position: absolute; top: 1px; left: 1px; width: 9px; height: 9px; border-radius: 50%; background: var(--text-2); }
   .toggle.on .sw::after { left: 10px; background: var(--accent); }
   .btn { padding: 5px 11px; border-radius: var(--r); border: 1px solid var(--border); color: var(--text); font-size: 11.5px; }
   .btn:hover { background: var(--surface); }
-  .btn.primary { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 55%, transparent); color: #bcd4ff; font-weight: 600; }
+  .btn.primary { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 55%, transparent); color: var(--accent); font-weight: 600; }
   .btn .kbd { color: var(--text-3); margin-left: 6px; font-family: var(--mono); font-size: 11px; }
 
-  /* results */
   .results { flex: 1; display: flex; flex-direction: column; min-height: 0; background: var(--bg); }
   .res-head { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--border-soft); }
   .res-head .count { font-weight: 600; color: var(--text); }
@@ -180,7 +152,6 @@
   .res-actions button { color: var(--text-2); padding: 3px 8px; border-radius: 5px; font-size: 11px; }
   .res-actions button:hover { background: var(--surface); color: var(--text); }
   .res-actions .sep { width: 1px; height: 14px; background: var(--border); margin: 0 4px; }
-
   .filterbar { display: flex; align-items: center; gap: 10px; padding: 7px 14px; border-bottom: 1px solid var(--border-soft); }
   .filterbar .search { flex: 1; }
   .pager { display: flex; align-items: center; gap: 12px; color: var(--text-3); font-size: 11px; white-space: nowrap; }
@@ -191,12 +162,7 @@
 
   .grid-wrap { flex: 1; overflow: auto; }
   table { border-collapse: collapse; width: 100%; }
-  thead th {
-    position: sticky; top: 0; background: var(--surface); z-index: 2;
-    text-align: left; font-weight: 600; color: var(--text-2); font-size: 11px;
-    letter-spacing: .03em; padding: 8px 14px; border-bottom: 1px solid var(--border);
-    white-space: nowrap;
-  }
+  thead th { position: sticky; top: 0; background: var(--surface); z-index: 2; text-align: left; font-weight: 600; color: var(--text-2); font-size: 11px; letter-spacing: .03em; padding: 8px 14px; border-bottom: 1px solid var(--border); white-space: nowrap; }
   thead th .ty { color: var(--text-3); font-weight: 400; font-size: 10px; margin-left: 6px; letter-spacing: 0; }
   thead th.num, td.num { text-align: right; }
   th.idx, td.idx { width: 38px; text-align: right; color: var(--text-3); padding-right: 10px; }
@@ -208,19 +174,22 @@
   tr:hover td .ref { opacity: .8; }
   td.num { font-variant-numeric: tabular-nums; }
 
-  /* status bar */
   .status { display: flex; align-items: center; height: 26px; background: var(--panel); border-top: 1px solid var(--border-soft); font-size: 11px; color: var(--text-3); }
   .status .seg { display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; height: 100%; border-right: 1px solid var(--border-soft); }
   .status .seg.env { color: var(--c); font-weight: 600; letter-spacing: .03em; }
   .status .seg.r { border-right: 0; border-left: 1px solid var(--border-soft); }
   .status .grow { flex: 1; }
 
-  .caption { position: fixed; right: 12px; bottom: 8px; z-index: 50; font-size: 10.5px; color: var(--text-3); background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 4px 11px; }
+  /* theme switcher */
+  .switcher { position: fixed; right: 12px; bottom: 10px; z-index: 60; display: flex; align-items: center; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 22px; padding: 4px; box-shadow: 0 6px 24px rgba(0,0,0,.4); }
+  .switcher .lbl { font-size: 10px; color: var(--text-3); padding: 0 8px; letter-spacing: .04em; text-transform: uppercase; }
+  .switcher button { font-size: 11px; color: var(--text-2); padding: 4px 10px; border-radius: 16px; }
+  .switcher button:hover { color: var(--text); background: var(--hover); }
+  .switcher button.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 </style>
 
-<div class="app">
+<div class="app" id="app" data-theme="tokyo">
   <div class="work">
-    <!-- activity bar -->
     <nav class="rail" aria-label="Sections">
       <button class="on" title="Explorer" aria-label="Explorer"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4"><ellipse cx="9" cy="4.2" rx="6" ry="2.2"/><path d="M3 4.2v9.6c0 1.2 2.7 2.2 6 2.2s6-1 6-2.2V4.2"/><path d="M3 9c0 1.2 2.7 2.2 6 2.2s6-1 6-2.2"/></svg></button>
       <button title="History" aria-label="History"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="9" cy="9" r="6.6"/><path d="M9 5v4l2.6 1.6"/></svg></button>
@@ -228,28 +197,21 @@
       <button title="Context" aria-label="Context"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M6.5 3.2c-2 0-2 2.6-2 4S4.5 11.4 3 11.4"/><path d="M6.5 14.8c-2 0-2-2.6-2-4"/><path d="M11.5 3.2c2 0 2 2.6 2 4s0 4.2 1.5 4.2"/><path d="M11.5 14.8c2 0 2-2.6 2-4"/></svg></button>
     </nav>
 
-    <!-- explorer -->
     <aside class="explorer">
       <div class="ex-head">
         <div class="ex-title"><b>Explorer</b><span>43 dbs · 829 tables</span></div>
-        <label class="search">
-          <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="6" cy="6" r="4.2"/><path d="M9.2 9.2 12 12"/></svg>
-          <input placeholder="Search tables, columns…" />
-        </label>
+        <label class="search"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="6" cy="6" r="4.2"/><path d="M9.2 9.2 12 12"/></svg><input placeholder="Search tables, columns…" /></label>
       </div>
-
       <div class="group-label">Templates</div>
       <div class="tmpl"><span class="dot"></span>notification-snapmint.sql</div>
       <div class="tmpl"><span class="dot"></span>pdd-bill-issue.sql</div>
       <div class="tmpl"><span class="dot"></span>ssfb_bill.sql</div>
-
       <div class="group-label">Schemas</div>
       <div class="tree">
         <div class="node"><span class="chev">›</span><span class="nm">account_management</span><span class="ct">27</span></div>
         <div class="node"><span class="chev">›</span><span class="nm">audit</span><span class="ct">3</span></div>
         <div class="node"><span class="chev">›</span><span class="nm">authorization</span><span class="ct">4</span></div>
         <div class="node"><span class="chev">›</span><span class="nm">billing</span><span class="ct">10</span></div>
-        <div class="node"><span class="chev">›</span><span class="nm">block_codes</span><span class="ct">6</span></div>
         <div class="node"><span class="chev">›</span><span class="nm">card_processor</span><span class="ct">77</span></div>
         <div class="node"><span class="chev">›</span><span class="nm">charge</span><span class="ct">4</span></div>
         <div class="node"><span class="chev">›</span><span class="nm">chronos</span><span class="ct">10</span></div>
@@ -263,9 +225,7 @@
       </div>
     </aside>
 
-    <!-- main -->
     <section class="main">
-      <!-- tabs -->
       <div class="tabs">
         <div class="tab"><span class="envdot" style="background:var(--env-sandbox)"></span><span class="lbl">ssfb_bill</span><span class="ro">RO</span><span class="x">×</span></div>
         <div class="tab"><span class="envdot" style="background:var(--env-dev)"></span><span class="lbl">workspace 95</span><span class="x">×</span></div>
@@ -276,7 +236,6 @@
         <div class="tab-overflow" title="3 more">+3</div>
       </div>
 
-      <!-- toolbar -->
       <div class="toolbar">
         <span class="chip env" style="--c:var(--env-staging)"><span class="envdot" style="background:var(--env-staging)"></span>STAGING</span>
         <span class="chip">account_management<span class="caret">▾</span></span>
@@ -285,7 +244,6 @@
         <span class="conn"><span class="ledon"></span>connected · 329ms</span>
       </div>
 
-      <!-- editor -->
       <div class="editor">
         <div class="gutter">1
 2
@@ -318,7 +276,6 @@
 <span class="kw">ORDER BY</span> notification_type, program_id;</div>
       </div>
 
-      <!-- run bar -->
       <div class="runbar">
         <button class="link">Save query</button>
         <button class="link">Save template</button>
@@ -328,7 +285,6 @@
         <button class="btn primary">Run<span class="kbd">⌘↵</span></button>
       </div>
 
-      <!-- results -->
       <div class="results">
         <div class="res-head">
           <span class="count tnum">54 rows</span>
@@ -338,12 +294,10 @@
             <button>Compact</button><button>JSON</button><button>CSV</button>
           </div>
         </div>
-
         <div class="filterbar">
           <label class="search"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="6" cy="6" r="4.2"/><path d="M9.2 9.2 12 12"/></svg><input placeholder="Filter rows across visible columns…" /></label>
           <div class="pager"><span>Showing <b>54</b> of <b>54</b></span><span>·</span><span><b>100</b>/page</span><span class="pg"><button>‹</button><b>1 / 1</b><button>›</button></span></div>
         </div>
-
         <div class="grid-wrap">
           <table>
             <thead>
@@ -376,7 +330,6 @@
     </section>
   </div>
 
-  <!-- status bar -->
   <div class="status">
     <span class="seg env" style="--c:var(--env-staging)"><span class="envdot" style="width:7px;height:7px;border-radius:50%;background:var(--env-staging)"></span>STAGING</span>
     <span class="seg">account_management</span>
@@ -386,6 +339,20 @@
     <span class="seg r tnum">329 ms</span>
     <span class="seg r"><span class="ledon"></span>connected</span>
   </div>
+
+  <div class="switcher" role="group" aria-label="Theme">
+    <span class="lbl">Theme</span>
+    <button class="on" data-t="tokyo" onclick="setTheme(this)">Tokyo Night</button>
+    <button data-t="dracula" onclick="setTheme(this)">Dracula</button>
+    <button data-t="synthwave" onclick="setTheme(this)">Synthwave</button>
+    <button data-t="calm" onclick="setTheme(this)">Calm</button>
+  </div>
 </div>
 
-<div class="caption">Mockup · “calm precision” direction — color = environment</div>
+<script>
+  function setTheme(btn) {
+    document.getElementById('app').setAttribute('data-theme', btn.dataset.t);
+    document.querySelectorAll('.switcher button').forEach(function (b) { b.classList.remove('on'); });
+    btn.classList.add('on');
+  }
+</script>
