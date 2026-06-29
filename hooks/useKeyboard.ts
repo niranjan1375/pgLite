@@ -31,15 +31,23 @@ export function useKeyboard(shortcuts: KeyboardShortcut[], enabled = true) {
                     shiftMatch &&
                     altMatch
                 ) {
+                    // Stop the event before Monaco / the browser act on it
+                    // (e.g. Cmd+Shift+G = "Find Previous"). Capture phase below
+                    // ensures we run before the editor's own key handlers.
                     e.preventDefault();
+                    e.stopPropagation();
                     shortcut.handler();
                     break;
                 }
             }
         };
 
-        window.addEventListener("keydown", handleKeyDown);
-        return () => window.removeEventListener("keydown", handleKeyDown);
+        // Capture phase: the editor (Monaco) registers keydown handlers on its
+        // own nodes; listening on capture lets app shortcuts win even while the
+        // editor is focused.
+        window.addEventListener("keydown", handleKeyDown, true);
+        return () =>
+            window.removeEventListener("keydown", handleKeyDown, true);
     }, [shortcuts, enabled]);
 }
 
