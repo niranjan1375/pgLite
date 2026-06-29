@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { PoolClient } from "pg";
 import { createPool } from "@/lib/db";
 import { applyVariables, validateVariables } from "@/lib/templates";
 
@@ -210,15 +211,20 @@ export async function POST(request: NextRequest) {
 
         const routedDatabase = dbPrefixes[0];
 
-        // Verify the detected database actually exists
-        const tempPool = createPool(environment, "postgres"); // Connect to default DB to check
-        try {
-            const dbCheckResult = await tempPool.query(
-                "SELECT datname FROM pg_database WHERE datname = $1 AND datistemplate = false",
-                [routedDatabase],
-            );
+        // Connect directly to the routed database. We deliberately do NOT run a
+        // separate existence check against the "postgres" database: that DB is
+        // not reachable in every environment (managed instances often restrict
+        // it), which made valid queries fail with a 5s connection timeout even
+        // when the target DB was fine. A non-existent database surfaces as
+        // SQLSTATE 3D000 on connect, which we translate to a friendly message.
+        pool = createPool(environment, routedDatabase);
 
-            if (dbCheckResult.rows.length === 0) {
+        let client: PoolClient;
+        try {
+            client = await pool.connect();
+        } catch (connectError) {
+            const code = (connectError as { code?: string })?.code;
+            if (code === "3D000") {
                 return NextResponse.json(
                     {
                         error: `Database "${routedDatabase}" does not exist. If you're using schema-qualified tables (e.g., "schema.table"), use a standard tab instead. Workspace mode is only for routing to different databases.`,
@@ -226,21 +232,8 @@ export async function POST(request: NextRequest) {
                     { status: 400 },
                 );
             }
-        } finally {
-            await tempPool.end();
+            throw connectError;
         }
-
-        // Create connection pool for the detected database
-        pool = createPool(environment, routedDatabase);
-
-        if (!pool) {
-            return NextResponse.json(
-                { error: `Failed to connect to database: ${routedDatabase}` },
-                { status: 500 },
-            );
-        }
-
-        const client = await pool.connect();
 
         try {
             // Set per-session timeout for this request.
