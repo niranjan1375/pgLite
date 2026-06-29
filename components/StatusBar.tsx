@@ -50,7 +50,9 @@ export default function StatusBar({
             style={{
                 height: "28px",
                 background: isProd ? "#0a0608" : "var(--panel)",
-                borderColor: isProd ? `${envColor}30` : "var(--border)",
+                borderColor: isProd
+                    ? `color-mix(in srgb, ${envColor} 19%, transparent)`
+                    : "var(--border)",
                 color: "var(--text-muted)",
             }}
         >
@@ -64,7 +66,6 @@ export default function StatusBar({
                         letterSpacing: "0.1em",
                         textTransform: "uppercase",
                         fontSize: "10px",
-                        textShadow: `0 0 8px ${envColor}80`,
                     }}
                 >
                     {environment || "—"}

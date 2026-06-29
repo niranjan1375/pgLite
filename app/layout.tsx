@@ -12,7 +12,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    // Theme is set here in one place; palettes live in globals.css.
+    <html lang="en" data-theme="tokyo">
       <body className="antialiased">{children}</body>
     </html>
   );

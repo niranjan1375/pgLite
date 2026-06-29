@@ -1,57 +1,171 @@
 @import "tailwindcss";
 
 /**
- * Cyberpunk Dev Tool Design System
- * Dark. Neon. Sharp. Developer-grade.
+ * pgLite theme system
+ * ---------------------------------------------------------------
+ * Themes live in ONE place: the [data-theme] blocks below. Every
+ * component references semantic CSS variables (--bg, --accent,
+ * --env-*, …) and never a raw hex, so changing or adding a theme
+ * means editing this file only — no component touches required.
+ *
+ * Switch the whole app by setting `data-theme` on <html>
+ * (see app/layout.tsx). Default theme: Tokyo Night.
  */
 
 :root {
-    /* Base — Deep blue-black, not pure black */
-    --bg: #080c12;
-    --panel: #0b0f18;
-    --panel-elevated: #0f1520;
-    --border: #16202e;
-    --border-bright: #1e3048;
-
-    /* Text */
-    --text-primary: #b8d0e8;
-    --text-muted: #3d5570;
-    --text-dim: #253a50;
-
-    /* Primary Accent — Neon Green */
-    --accent: #00ff88;
-    --accent-hover: #00cc70;
-    --accent-dim: rgba(0, 255, 136, 0.08);
-    --accent-glow: 0 0 8px rgba(0, 255, 136, 0.45), 0 0 24px rgba(0, 255, 136, 0.12);
-
-    /* Secondary — Cyan */
-    --cyan: #00e5ff;
-    --cyan-dim: rgba(0, 229, 255, 0.08);
-    --cyan-glow: 0 0 8px rgba(0, 229, 255, 0.4), 0 0 20px rgba(0, 229, 255, 0.1);
-
-    /* Environment Colors */
-    --env-dev: #00ff88;
-    --env-staging: #ff9500;
-    --env-prod: #ff2d55;
-
-    /* Status */
-    --error: #ff2d55;
-    --warning: #ff9500;
-    --success: #00ff88;
-
-    /* Grid / table lines */
-    --grid-line: #1a2840;
-
-    /* Layout */
-    --activity-bar: 44px;
-    --status-bar: 28px;
-    --row-height: 32px;
-    --border-width: 1px;
-
-    /* Typography */
+    /* Structural tokens — palette-independent */
+    --font-sans:
+        -apple-system, "SF Pro Text", "Segoe UI", Roboto, system-ui, sans-serif;
     --font-mono:
-        "SF Mono", "Monaco", "Inconsolata", "Fira Mono", "Droid Sans Mono",
+        "SF Mono", "JetBrains Mono", "Monaco", "Inconsolata", "Fira Mono",
         "Source Code Pro", monospace;
+
+    --activity-bar: 46px;
+    --status-bar: 26px;
+    --row-height: 30px;
+    --border-width: 1px;
+    --radius: 6px;
+}
+
+/* ─── Tokyo Night (default) ─────────────────────────────────────────── */
+:root,
+[data-theme="tokyo"] {
+    --bg: #1a1b26;
+    --panel: #1f2233;
+    --panel-elevated: #24283b;
+    --border: #2a2f44;
+    --border-bright: #33384f;
+
+    --text-primary: #c0caf5;
+    --text-muted: #8b95bd;
+    --text-dim: #565f89;
+
+    --accent: #7aa2f7;
+    --accent-hover: #89b4ff;
+    --accent-dim: rgba(122, 162, 247, 0.12);
+    --accent-glow: 0 0 12px rgba(122, 162, 247, 0.18);
+
+    --cyan: #7dcfff;
+    --cyan-dim: rgba(125, 207, 255, 0.12);
+    --cyan-glow: 0 0 12px rgba(125, 207, 255, 0.15);
+
+    --env-dev: #9ece6a;
+    --env-loadtest: #9ece6a;
+    --env-sandbox: #7dcfff;
+    --env-staging: #e0af68;
+    --env-uat: #f7768e;
+    --env-prod: #f7768e;
+
+    --error: #f7768e;
+    --warning: #e0af68;
+    --success: #9ece6a;
+
+    --grid-line: #2a2f44;
+}
+
+/* ─── Dracula ───────────────────────────────────────────────────────── */
+[data-theme="dracula"] {
+    --bg: #21222c;
+    --panel: #282a36;
+    --panel-elevated: #2f313f;
+    --border: #3a3d4d;
+    --border-bright: #424458;
+
+    --text-primary: #f8f8f2;
+    --text-muted: #bfc7e0;
+    --text-dim: #6272a4;
+
+    --accent: #bd93f9;
+    --accent-hover: #cda8ff;
+    --accent-dim: rgba(189, 147, 249, 0.16);
+    --accent-glow: 0 0 12px rgba(189, 147, 249, 0.2);
+
+    --cyan: #8be9fd;
+    --cyan-dim: rgba(139, 233, 253, 0.14);
+    --cyan-glow: 0 0 12px rgba(139, 233, 253, 0.16);
+
+    --env-dev: #50fa7b;
+    --env-loadtest: #50fa7b;
+    --env-sandbox: #8be9fd;
+    --env-staging: #ffb86c;
+    --env-uat: #ff5555;
+    --env-prod: #ff5555;
+
+    --error: #ff5555;
+    --warning: #ffb86c;
+    --success: #50fa7b;
+
+    --grid-line: #3a3d4d;
+}
+
+/* ─── Synthwave ─────────────────────────────────────────────────────── */
+[data-theme="synthwave"] {
+    --bg: #19142b;
+    --panel: #1f1a35;
+    --panel-elevated: #262040;
+    --border: #3a3160;
+    --border-bright: #463a73;
+
+    --text-primary: #f0eafc;
+    --text-muted: #b9aee0;
+    --text-dim: #7a6ca6;
+
+    --accent: #ff5dbd;
+    --accent-hover: #ff7ecb;
+    --accent-dim: rgba(255, 93, 189, 0.16);
+    --accent-glow: 0 0 14px rgba(255, 93, 189, 0.22);
+
+    --cyan: #36f9f6;
+    --cyan-dim: rgba(54, 249, 246, 0.12);
+    --cyan-glow: 0 0 14px rgba(54, 249, 246, 0.18);
+
+    --env-dev: #72f1b8;
+    --env-loadtest: #72f1b8;
+    --env-sandbox: #36f9f6;
+    --env-staging: #fede5d;
+    --env-uat: #fb5d8f;
+    --env-prod: #fb5d8f;
+
+    --error: #fb5d8f;
+    --warning: #fede5d;
+    --success: #72f1b8;
+
+    --grid-line: #3a3160;
+}
+
+/* ─── Calm (quiet neutral) ──────────────────────────────────────────── */
+[data-theme="calm"] {
+    --bg: #14171c;
+    --panel: #1a1f27;
+    --panel-elevated: #1e242d;
+    --border: #2a313b;
+    --border-bright: #343c48;
+
+    --text-primary: #dbe1e8;
+    --text-muted: #99a4b1;
+    --text-dim: #646e7b;
+
+    --accent: #6ea8fe;
+    --accent-hover: #8bb9ff;
+    --accent-dim: rgba(110, 168, 254, 0.12);
+    --accent-glow: 0 0 12px rgba(110, 168, 254, 0.16);
+
+    --cyan: #5bbfd0;
+    --cyan-dim: rgba(91, 191, 208, 0.12);
+    --cyan-glow: 0 0 12px rgba(91, 191, 208, 0.14);
+
+    --env-dev: #5cc98e;
+    --env-loadtest: #5cc98e;
+    --env-sandbox: #5bbfd0;
+    --env-staging: #e0a458;
+    --env-uat: #e0697a;
+    --env-prod: #e0697a;
+
+    --error: #e0697a;
+    --warning: #e0a458;
+    --success: #5cc98e;
+
+    --grid-line: #2a313b;
 }
 
 * {
@@ -71,78 +185,43 @@ body {
     -moz-osx-font-smoothing: grayscale;
 }
 
-/* Cyber dot-grid background */
-body::before {
-    content: "";
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-image:
-        radial-gradient(circle, rgba(0, 229, 255, 0.025) 1px, transparent 1px);
-    background-size: 28px 28px;
-    pointer-events: none;
-    z-index: 9999;
-}
-
-/* Thin vignette on edges */
-body::after {
-    content: "";
-    position: fixed;
-    inset: 0;
-    background:
-        radial-gradient(ellipse at center, transparent 60%, rgba(0, 0, 0, 0.5) 100%);
-    pointer-events: none;
-    z-index: 9998;
-}
-
-/* Sharp scrollbars — cyber style */
+/* Scrollbars */
 ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 9px;
+    height: 9px;
 }
-
 ::-webkit-scrollbar-track {
-    background: var(--bg);
+    background: transparent;
 }
-
 ::-webkit-scrollbar-thumb {
     background: var(--border-bright);
+    border-radius: 6px;
+    border: 2px solid var(--bg);
 }
-
 ::-webkit-scrollbar-thumb:hover {
-    background: var(--text-muted);
+    background: var(--text-dim);
 }
 
-/* Focus — neon outline */
 *:focus {
     outline: none;
 }
-
 *:focus-visible {
-    outline: 1px solid var(--accent);
-    outline-offset: -1px;
+    outline: 1.5px solid var(--accent);
+    outline-offset: 1px;
 }
 
-/* Selection */
 ::selection {
-    background: rgba(0, 255, 136, 0.25);
+    background: color-mix(in srgb, var(--accent) 30%, transparent);
     color: var(--text-primary);
 }
 
-/* Monospace inputs */
+/* Form controls inherit the surrounding font (sans chrome / mono data) */
 input,
 textarea,
 select,
 button {
-    font-family: var(--font-mono);
-    font-size: 13px;
-}
-
-/* No rounded corners by default — override per-component as needed */
-* {
-    border-radius: 0 !important;
+    font-family: inherit;
+    font-size: inherit;
 }
 
 /* ─── Monaco Editor Glyph — Run button in gutter ─────────────────────── */
@@ -155,8 +234,9 @@ button {
     width: 100%;
     height: 100%;
     cursor: pointer;
-    color: #000 !important;
+    color: var(--bg) !important;
     background: var(--accent);
+    border-radius: 3px;
     opacity: 1;
 }
 
@@ -167,7 +247,6 @@ button {
 
 .monaco-editor .margin-view-overlays .statement-run-glyph:hover {
     background: var(--accent-hover);
-    box-shadow: var(--accent-glow);
 }
 
 @keyframes statementRunSpin {
@@ -177,92 +256,64 @@ button {
 
 @keyframes statementRunPulse {
     0%   { transform: scale(1);    filter: brightness(1); }
-    50%  { transform: scale(1.14); filter: brightness(1.4); }
+    50%  { transform: scale(1.12); filter: brightness(1.25); }
     100% { transform: scale(1);    filter: brightness(1); }
 }
 
 .monaco-editor .margin-view-overlays .statement-run-glyph--running {
     background: var(--cyan) !important;
-    box-shadow: var(--cyan-glow) !important;
 }
-
 .monaco-editor .margin-view-overlays .statement-run-glyph--running::before {
     animation: statementRunSpin 0.75s linear infinite;
-    color: #000 !important;
+    color: var(--bg) !important;
 }
-
 .monaco-editor .margin-view-overlays .statement-run-glyph--success {
-    background: var(--accent) !important;
-    box-shadow: var(--accent-glow) !important;
+    background: var(--success) !important;
 }
-
 .monaco-editor .margin-view-overlays .statement-run-glyph--success::before {
     animation: statementRunPulse 0.45s ease-out;
 }
 
-/* ─── Neon glow utilities ─────────────────────────────────────────────── */
-
-.neon-green {
-    color: var(--accent);
-    text-shadow: 0 0 8px rgba(0, 255, 136, 0.6);
-}
-
-.neon-cyan {
-    color: var(--cyan);
-    text-shadow: 0 0 8px rgba(0, 229, 255, 0.6);
-}
-
-.glow-border-green {
-    border-color: var(--accent) !important;
-    box-shadow: var(--accent-glow) !important;
-}
-
-/* ─── Cyber button base ───────────────────────────────────────────────── */
+/* ─── Button utilities (palette-driven) ──────────────────────────────── */
 
 .cyber-btn {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    padding: 3px 8px;
-    font-family: var(--font-mono);
-    font-size: 11px;
-    letter-spacing: 0.05em;
+    padding: 4px 9px;
+    font-family: var(--font-sans);
+    font-size: 11.5px;
     border: 1px solid var(--border-bright);
+    border-radius: var(--radius);
     background: transparent;
     color: var(--text-muted);
     cursor: pointer;
-    transition: color 0.12s, border-color 0.12s, box-shadow 0.12s;
+    transition: color 0.12s, border-color 0.12s, background 0.12s;
     white-space: nowrap;
 }
-
 .cyber-btn:hover {
     color: var(--text-primary);
-    border-color: var(--text-muted);
+    border-color: var(--text-dim);
+    background: var(--panel-elevated);
 }
-
 .cyber-btn:disabled {
-    opacity: 0.3;
+    opacity: 0.4;
     cursor: not-allowed;
 }
-
 .cyber-btn-accent {
     color: var(--accent);
-    border-color: rgba(0, 255, 136, 0.35);
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+    background: var(--accent-dim);
 }
-
 .cyber-btn-accent:hover {
     color: var(--accent);
     border-color: var(--accent);
-    box-shadow: var(--accent-glow);
 }
-
 .cyber-btn-warn {
     color: var(--warning);
-    border-color: rgba(255, 149, 0, 0.35);
+    border-color: color-mix(in srgb, var(--warning) 40%, transparent);
 }
-
 .cyber-btn-warn:hover {
     color: var(--warning);
     border-color: var(--warning);
-    box-shadow: 0 0 8px rgba(255, 149, 0, 0.3);
 }

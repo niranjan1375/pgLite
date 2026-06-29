@@ -109,7 +109,9 @@ export default function EnvironmentStrip({
             style={{
                 height: "32px",
                 background: "var(--panel)",
-                borderColor: isProd ? `${envColor}30` : "var(--border)",
+                borderColor: isProd
+                    ? `color-mix(in srgb, ${envColor} 19%, transparent)`
+                    : "var(--border)",
             }}
         >
             {/* Environment selector */}
@@ -123,7 +125,6 @@ export default function EnvironmentStrip({
                         letterSpacing: "0.08em",
                         textTransform: "uppercase",
                         fontSize: "11px",
-                        textShadow: `0 0 10px ${envColor}60`,
                         borderRight: "1px solid var(--border)",
                         minWidth: "max-content",
                     }}
@@ -132,10 +133,11 @@ export default function EnvironmentStrip({
                     <span
                         style={{
                             display: "inline-block",
-                            width: "5px",
-                            height: "5px",
+                            width: "6px",
+                            height: "6px",
+                            borderRadius: "50%",
                             background: envColor,
-                            boxShadow: `0 0 6px ${envColor}, 0 0 12px ${envColor}80`,
+                            boxShadow: `0 0 0 3px color-mix(in srgb, ${envColor} 16%, transparent)`,
                             flexShrink: 0,
                         }}
                     />

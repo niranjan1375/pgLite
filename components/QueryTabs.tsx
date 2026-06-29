@@ -483,10 +483,9 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
                         style={{
                             padding: "0 14px",
                             color: isActive ? envColor : "var(--text-muted)",
-                            background: isActive ? "var(--bg)" : "transparent",
+                            background: isActive ? "var(--panel)" : "transparent",
                             borderRight: "1px solid var(--border)",
                             borderBottom: isActive ? `2px solid ${envColor}` : "2px solid transparent",
-                            boxShadow: isActive ? `0 -1px 0 0 ${envColor}40 inset, 0 4px 12px ${envColor}15` : "none",
                         }}
                         title="Double-click to rename"
                     >
