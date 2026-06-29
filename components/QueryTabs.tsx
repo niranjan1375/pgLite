@@ -7,6 +7,7 @@ import {
     useImperativeHandle,
     useRef,
 } from "react";
+import { format as formatSql } from "sql-formatter";
 import { getEnvironmentColor } from "@/lib/design-system";
 import { useKeyboard } from "@/hooks/useKeyboard";
 
@@ -402,6 +403,30 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
         }
     };
 
+    const formatActiveTabQuery = () => {
+        if (!activeTab) {
+            return;
+        }
+
+        try {
+            const formattedQuery = formatSql(activeTab.query, {
+                language: "postgresql",
+                tabWidth: 2,
+                keywordCase: "upper",
+            });
+
+            setTabs((prevTabs) =>
+                prevTabs.map((tab) =>
+                    tab.id === activeTab.id
+                        ? { ...tab, query: formattedQuery }
+                        : tab,
+                ),
+            );
+        } catch (error) {
+            console.error("Failed to format SQL:", error);
+        }
+    };
+
     const renameTab = (tabId: string) => {
         const name = window.prompt("Rename tab:");
         if (name) {
@@ -440,8 +465,8 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
 
     return (
         <div
-            className="flex items-center gap-2 h-[36px] px-2"
-            style={{ background: "var(--panel)" }}
+            className="flex items-center h-[36px] overflow-x-auto"
+            style={{ background: "var(--panel)", gap: 0 }}
         >
             {/* Tabs */}
             {tabs.map((tab) => {
@@ -454,65 +479,51 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
                         key={tab.id}
                         onClick={() => setActiveTabId(tab.id)}
                         onDoubleClick={() => renameTab(tab.id)}
-                        className="relative px-3 py-1.5 text-[12px] uppercase tracking-wide transition-colors hover:opacity-80 border"
+                        className="relative flex items-center gap-1.5 h-full text-[11px] uppercase tracking-wide transition-all shrink-0"
                         style={{
+                            padding: "0 14px",
                             color: isActive ? envColor : "var(--text-muted)",
                             background: isActive ? "var(--bg)" : "transparent",
-                            borderColor: isActive ? envColor : "transparent",
-                            borderBottomColor: isActive
-                                ? envColor
-                                : "transparent",
-                            paddingTop: "6px",
-                            paddingBottom: "6px",
-                            paddingLeft: "12px",
-                            paddingRight: "12px",
                             borderRight: "1px solid var(--border)",
-                            borderRadius: "20px",
+                            borderBottom: isActive ? `2px solid ${envColor}` : "2px solid transparent",
+                            boxShadow: isActive ? `0 -1px 0 0 ${envColor}40 inset, 0 4px 12px ${envColor}15` : "none",
                         }}
                         title="Double-click to rename"
                     >
-                        <span
-                            style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "4px",
-                            }}
-                        >
-                            {tab.readOnly && (
-                                <span
-                                    className="px-1 text-[9px] border rounded"
-                                    style={{ borderColor: "var(--border)" }}
-                                >
-                                    RO
-                                </span>
-                            )}
-                            {tab.mode === "workspace" && (
-                                <span
-                                    className="px-1 text-[9px] border rounded"
-                                    style={{
-                                        color: "var(--accent)",
-                                        borderColor: "var(--accent)",
-                                        borderRadius: "20px",
-                                    }}
-                                >
-                                    WS
-                                </span>
-                            )}
-                            <span>{displayName}</span>
-                        </span>
-                        {isActive && (
-                            <div
-                                className="absolute bottom-0 left-0 right-0 h-[2px]"
-                                style={{ background: envColor }}
-                            />
+                        {tab.readOnly && (
+                            <span
+                                className="px-1 text-[9px] border"
+                                style={{
+                                    color: "var(--warning)",
+                                    borderColor: "rgba(255,149,0,0.4)",
+                                }}
+                            >
+                                RO
+                            </span>
                         )}
-                        {tabs.length > 1 && isActive && (
+                        {tab.mode === "workspace" && (
+                            <span
+                                className="px-1 text-[9px] border"
+                                style={{
+                                    color: "var(--accent)",
+                                    borderColor: "rgba(0,255,136,0.4)",
+                                }}
+                            >
+                                WS
+                            </span>
+                        )}
+                        <span>{displayName}</span>
+                        {tabs.length > 1 && (
                             <span
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     closeTab(tab.id);
                                 }}
-                                className="ml-2 hover:opacity-60"
+                                className="transition-opacity text-[13px] leading-none"
+                                style={{
+                                    opacity: isActive ? 0.6 : 0.2,
+                                    marginLeft: "2px",
+                                }}
                             >
                                 ×
                             </span>
@@ -524,11 +535,8 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
             {/* Add Tab */}
             <button
                 onClick={addTab}
-                className="px-3 py-1 text-[14px] hover:opacity-80 transition-opacity"
-                style={{
-                    color: "var(--text-muted)",
-                    marginLeft: "4px",
-                }}
+                className="flex items-center justify-center h-full px-3 text-[16px] transition-all hover:bg-white/5 shrink-0"
+                style={{ color: "var(--text-muted)", borderRight: "1px solid var(--border)" }}
                 title="New standard tab (⌘T)"
             >
                 +
@@ -537,24 +545,25 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
             {/* Add Workspace Tab */}
             <button
                 onClick={addWorkspaceTab}
-                className="px-3 py-1 text-[11px] font-medium hover:opacity-80 transition-all border rounded"
+                className="flex items-center h-full px-3 text-[10px] uppercase tracking-widest font-bold transition-all hover:bg-white/5 shrink-0"
                 style={{
                     color: "var(--accent)",
-                    borderColor: "var(--accent)",
-                    background: "rgba(59, 130, 246, 0.05)",
-                    marginLeft: "4px",
+                    borderRight: "1px solid var(--border)",
+                    gap: "4px",
                 }}
-                title="New workspace tab (auto-routes to DB based on table prefix)"
+                title="New workspace tab — auto-routes to DB based on table prefix"
             >
-                <span
-                    style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "4px",
-                    }}
-                >
-                    <span>WS</span>
-                </span>
+                <span style={{ color: "var(--accent)", fontSize: "8px" }}>◆</span>
+                WS
+            </button>
+
+            <button
+                onClick={formatActiveTabQuery}
+                className="flex items-center h-full px-3 text-[10px] uppercase tracking-widest font-bold transition-all hover:bg-white/5 shrink-0"
+                style={{ color: "var(--text-muted)", borderRight: "1px solid var(--border)" }}
+                title="Format SQL (prettify)"
+            >
+                FMT
             </button>
         </div>
     );

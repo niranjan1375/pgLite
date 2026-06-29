@@ -164,3 +164,34 @@ SELECT * FROM users ORDER BY id LIMIT 1000 OFFSET 1000; -- Page 2
 - Requires connection persistence during cursor lifetime
 - Consider cursor timeout (close after 5 minutes idle)
 - Future: Keyset pagination for better performance than OFFSET
+
+---
+
+## Decision (2026-06-26): deferred; chosen approach for when we do it
+
+P0-002 was updated to truncate-and-show instead of rejecting large results,
+which fixed the **UX** problem. It did **not** bound **DB-side memory** —
+`pool.query()` still materializes every row before we slice to 10K. This
+issue tracks the real memory fix. Three options were weighed:
+
+1. **SQL rewriting** — wrap as `SELECT * FROM (<query>) _sub LIMIT 10001`.
+   **Rejected.** `SELECT *` over a JOIN produces duplicate column names and
+   Postgres errors with `column "<x>" specified more than once` — and
+   `SELECT * FROM a JOIN b` is one of the most common queries in this tool.
+   Also breaks on multi-statement input, trailing `;`, `EXPLAIN`/`SHOW`, and
+   DML-with-`RETURNING`. Too many sharp edges.
+
+2. **Streaming cursor (`pg-cursor`)** — **chosen approach when we act.** Open
+   a cursor, read `MAX_ROWS + 1` rows, then close/release. Bounds memory
+   regardless of table size with **no SQL rewriting**, so `SELECT *`, JOINs,
+   and CTEs all just work. Costs one small dependency; applies only to
+   row-returning reads (keep current path for INSERT/UPDATE/DELETE). The
+   `DECLARE … CURSOR` snippet above achieves the same thing without the dep,
+   but `pg-cursor` is cleaner for the simple "read first N then stop" case.
+
+3. **Leave as-is** — acceptable today: internal tool, few engineers, pool
+   capped at `max: 10`/request, 30s timeout. 32K rows ≈ a few MB.
+
+**Decision: stay on option 3 for now.** Implement option 2 (`pg-cursor`) the
+moment we observe real memory pressure — a route OOMing, or routine
+million-row pulls. Do **not** pursue option 1.

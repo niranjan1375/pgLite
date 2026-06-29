@@ -23,18 +23,6 @@ export function createPool(
         return createPool(defaultEnvironment, database);
     }
 
-    // Temporary debug logging
-    if (environment === "sandbox") {
-        console.log("🔐 Sandbox connection details:", {
-            host: envConfig.host,
-            port: envConfig.port,
-            user: envConfig.user,
-            passwordLength: envConfig.password?.length,
-            passwordStart: envConfig.password?.substring(0, 5),
-            database: database || envConfig.database,
-        });
-    }
-
     return new Pool({
         host: envConfig.host,
         port: envConfig.port,

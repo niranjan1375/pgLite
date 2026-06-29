@@ -2,43 +2,139 @@
 
 interface ActivityBarProps {
     sidebarCollapsed: boolean;
+    historyOpen: boolean;
+    savedQueriesOpen: boolean;
+    contextOpen: boolean;
     onToggleSidebar: () => void;
+    onToggleHistory: () => void;
+    onToggleSavedQueries: () => void;
+    onToggleContext: () => void;
+}
+
+function IconDatabase() {
+    return (
+        <svg width="17" height="17" viewBox="0 0 17 17" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+            <ellipse cx="8.5" cy="4.5" rx="5.5" ry="2" />
+            <path d="M3 4.5v4c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2v-4" />
+            <path d="M3 8.5v4c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2v-4" />
+        </svg>
+    );
+}
+
+function IconClock() {
+    return (
+        <svg width="17" height="17" viewBox="0 0 17 17" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+            <circle cx="8.5" cy="8.5" r="6.5" />
+            <polyline points="8.5,5 8.5,8.5 11,10.5" />
+        </svg>
+    );
+}
+
+function IconBookmark() {
+    return (
+        <svg width="17" height="17" viewBox="0 0 17 17" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 2.5h9v12.5L8.5 12l-4.5 3V2.5z" />
+        </svg>
+    );
+}
+
+function IconVariable() {
+    // {x} — shared variables / context
+    return (
+        <svg width="17" height="17" viewBox="0 0 17 17" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M6 2.5C4 2.5 4 5 4 6.5S4 10.5 2.5 10.5" />
+            <path d="M6 14.5C4 14.5 4 12 4 10.5" />
+            <path d="M11 2.5c2 0 2 2.5 2 4s0 4 1.5 4" />
+            <path d="M11 14.5c2 0 2-2.5 2-4" />
+        </svg>
+    );
+}
+
+interface ActivityButtonProps {
+    active: boolean;
+    onClick: () => void;
+    title: string;
+    children: React.ReactNode;
+}
+
+function ActivityButton({ active, onClick, title, children }: ActivityButtonProps) {
+    return (
+        <button
+            onClick={onClick}
+            title={title}
+            className="w-full flex items-center justify-center relative transition-all"
+            style={{
+                height: "44px",
+                color: active ? "var(--accent)" : "var(--text-muted)",
+                background: active ? "var(--accent-dim)" : "transparent",
+            }}
+        >
+            {children}
+            {active && (
+                <div
+                    className="absolute left-0 top-0 bottom-0 w-[2px]"
+                    style={{
+                        background: "var(--accent)",
+                        boxShadow: "var(--accent-glow)",
+                    }}
+                />
+            )}
+        </button>
+    );
 }
 
 export default function ActivityBar({
     sidebarCollapsed,
+    historyOpen,
+    savedQueriesOpen,
+    contextOpen,
     onToggleSidebar,
+    onToggleHistory,
+    onToggleSavedQueries,
+    onToggleContext,
 }: ActivityBarProps) {
     return (
         <div
-            className="w-[40px] h-full flex flex-col items-center border-r"
+            className="flex flex-col items-center flex-shrink-0 border-r"
             style={{
+                width: "44px",
                 background: "var(--bg)",
                 borderColor: "var(--border)",
             }}
         >
-            <button
+            <ActivityButton
+                active={!sidebarCollapsed}
                 onClick={onToggleSidebar}
-                className="w-full h-[40px] flex items-center justify-center text-[18px] transition-colors relative"
-                style={{
-                    color: "var(--accent)",
-                    background: "var(--panel)",
-                }}
-                title={
-                    sidebarCollapsed
-                        ? "Show explorer (Cmd/Ctrl+B)"
-                        : "Hide explorer (Cmd/Ctrl+B)"
-                }
-                aria-label={
-                    sidebarCollapsed ? "Show explorer" : "Hide explorer"
-                }
+                title={sidebarCollapsed ? "Show explorer (⌘B)" : "Hide explorer (⌘B)"}
             >
-                {sidebarCollapsed ? "▸" : "◂"}
-                <div
-                    className="absolute left-0 top-0 bottom-0 w-[2px]"
-                    style={{ background: "var(--accent)" }}
-                />
-            </button>
+                <IconDatabase />
+            </ActivityButton>
+
+            <div className="w-6 h-px" style={{ background: "var(--border)" }} />
+
+            <ActivityButton
+                active={historyOpen}
+                onClick={onToggleHistory}
+                title={historyOpen ? "Hide history (⌘H)" : "Show history (⌘H)"}
+            >
+                <IconClock />
+            </ActivityButton>
+
+            <ActivityButton
+                active={savedQueriesOpen}
+                onClick={onToggleSavedQueries}
+                title={savedQueriesOpen ? "Hide saved queries (⌘J)" : "Show saved queries (⌘J)"}
+            >
+                <IconBookmark />
+            </ActivityButton>
+
+            <ActivityButton
+                active={contextOpen}
+                onClick={onToggleContext}
+                title={contextOpen ? "Hide context (⌘G)" : "Show context (⌘G)"}
+            >
+                <IconVariable />
+            </ActivityButton>
         </div>
     );
 }

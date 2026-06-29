@@ -1,16 +1,35 @@
 "use client";
 
 import { useState } from "react";
-import { useEscapeKey } from "@/hooks/useKeyboard";
+import { useEscapeKey, useKeyboard } from "@/hooks/useKeyboard";
 
 export default function KeyboardHelp() {
     const [isOpen, setIsOpen] = useState(false);
 
     useEscapeKey(() => setIsOpen(false), isOpen);
+    useKeyboard([
+        {
+            key: "k",
+            ctrl: true,
+            description: "Toggle keyboard help",
+            handler: () => setIsOpen((prev) => !prev),
+        },
+        {
+            key: "?",
+            shift: true,
+            description: "Open keyboard help",
+            handler: () => setIsOpen(true),
+        },
+    ]);
 
     const shortcuts = [
         { keys: ["⌘", "Enter"], description: "Execute query" },
         { keys: ["⌘", "K"], description: "Toggle keyboard help" },
+        { keys: ["?"], description: "Open keyboard help" },
+        { keys: ["⌘", "H"], description: "Toggle query history" },
+        { keys: ["⌘", "J"], description: "Toggle saved queries" },
+        { keys: ["⌘", "G"], description: "Toggle context panel" },
+        { keys: ["⌘", "⇧", "G"], description: "Open context (quick modal)" },
         { keys: ["Esc"], description: "Close menu/dialog" },
         { keys: ["⌘", "T"], description: "New tab" },
         { keys: ["⌘", "W"], description: "Close tab" },

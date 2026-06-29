@@ -22,6 +22,7 @@ interface SchemaInfo {
         schema: string;
         tables: {
             name: string;
+            primaryKeys?: string[];
             columns: {
                 name: string;
                 type: string;
@@ -81,58 +82,82 @@ export async function GET(req: NextRequest) {
             try {
                 pool = createPool(environment, dbName);
 
-                // Get all schemas and tables
                 const schemaResult = await pool.query(`
+                    WITH primary_keys AS (
+                        SELECT
+                            kcu.table_schema,
+                            kcu.table_name,
+                            array_agg(kcu.column_name ORDER BY kcu.ordinal_position) AS primary_keys
+                        FROM information_schema.table_constraints tc
+                        JOIN information_schema.key_column_usage kcu
+                          ON tc.constraint_name = kcu.constraint_name
+                         AND tc.table_schema = kcu.table_schema
+                         AND tc.table_name = kcu.table_name
+                        WHERE tc.constraint_type = 'PRIMARY KEY'
+                        GROUP BY kcu.table_schema, kcu.table_name
+                    )
                     SELECT 
-                        n.nspname as schema_name,
-                        c.relname as table_name
-                    FROM pg_class c
-                    JOIN pg_namespace n ON n.oid = c.relnamespace
-                    WHERE c.relkind = 'r'
-                    AND n.nspname NOT IN ('pg_catalog', 'information_schema')
-                    ORDER BY n.nspname, c.relname;
+                        c.table_schema AS schema_name,
+                        c.table_name,
+                        c.column_name AS name,
+                        c.data_type AS type,
+                        c.is_nullable AS nullable,
+                        COALESCE(pk.primary_keys, ARRAY[]::text[]) AS primary_keys
+                    FROM information_schema.columns c
+                    JOIN information_schema.tables t
+                      ON c.table_schema = t.table_schema
+                     AND c.table_name = t.table_name
+                    LEFT JOIN primary_keys pk
+                      ON c.table_schema = pk.table_schema
+                     AND c.table_name = pk.table_name
+                    WHERE t.table_type = 'BASE TABLE'
+                      AND c.table_schema NOT IN ('pg_catalog', 'information_schema')
+                    ORDER BY c.table_schema, c.table_name, c.ordinal_position;
                 `);
 
-                // Group by schema
-                const schemaMap: Record<string, Set<string>> = {};
+                const schemaMap = new Map<
+                    string,
+                    Map<
+                        string,
+                        {
+                            name: string;
+                            primaryKeys: string[];
+                            columns: {
+                                name: string;
+                                type: string;
+                                nullable: string;
+                            }[];
+                        }
+                    >
+                >();
+
                 for (const row of schemaResult.rows) {
-                    if (!schemaMap[row.schema_name]) {
-                        schemaMap[row.schema_name] = new Set();
+                    if (!schemaMap.has(row.schema_name)) {
+                        schemaMap.set(row.schema_name, new Map());
                     }
-                    schemaMap[row.schema_name].add(row.table_name);
-                }
 
-                // Build schema structure
-                const schemas = [];
-                for (const [schemaName, tableSet] of Object.entries(
-                    schemaMap,
-                )) {
-                    const tables = [];
-
-                    for (const tableName of Array.from(tableSet)) {
-                        // Get columns for each table
-                        const columnResult = await pool.query(
-                            `SELECT 
-                                column_name as name,
-                                data_type as type,
-                                is_nullable as nullable
-                            FROM information_schema.columns
-                            WHERE table_schema = $1 AND table_name = $2
-                            ORDER BY ordinal_position;`,
-                            [schemaName, tableName],
-                        );
-
-                        tables.push({
-                            name: tableName,
-                            columns: columnResult.rows,
+                    const tablesForSchema = schemaMap.get(row.schema_name)!;
+                    if (!tablesForSchema.has(row.table_name)) {
+                        tablesForSchema.set(row.table_name, {
+                            name: row.table_name,
+                            primaryKeys: row.primary_keys || [],
+                            columns: [],
                         });
                     }
 
-                    schemas.push({
-                        schema: schemaName,
-                        tables,
+                    tablesForSchema.get(row.table_name)!.columns.push({
+                        name: row.name,
+                        type: row.type,
+                        nullable: row.nullable,
                     });
                 }
+
+                const schemas = Array.from(schemaMap.entries()).map(
+                    ([schemaName, tableMap]) => ({
+                        schema: schemaName,
+                        tables: Array.from(tableMap.values()),
+                    }),
+                );
 
                 allSchemas.push({
                     database: dbName,

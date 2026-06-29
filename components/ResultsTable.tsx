@@ -12,6 +12,17 @@ interface QueryResult {
     rows: Record<string, unknown>[];
     rowCount: number;
     fields: string[];
+    fieldTypes?: number[];
+}
+
+interface TableViewState {
+    page: number;
+    pageSize: number;
+    totalRows: number;
+    totalPages: number;
+    sortColumn: string | null;
+    sortDirection: "asc" | "desc";
+    searchQuery: string;
 }
 
 interface ResultsTableProps {
@@ -20,6 +31,20 @@ interface ResultsTableProps {
     loading: boolean;
     readOnly?: boolean;
     tableName?: string;
+    tableView?: TableViewState | null;
+    onTableViewChange?: (
+        updates: Partial<
+            Pick<
+                TableViewState,
+                | "page"
+                | "pageSize"
+                | "sortColumn"
+                | "sortDirection"
+                | "searchQuery"
+            >
+        >,
+    ) => void;
+    onRefreshTableView?: () => void;
     onDeleteRow?: (row: Record<string, unknown>) => void;
 }
 
@@ -34,11 +59,43 @@ interface SortConfig {
 
 type Density = "compact" | "default";
 
+const ROW_NUM_WIDTH = 28;
+
+// PostgreSQL OID → display type label
+const PG_OID_TYPES: Record<number, string> = {
+    16: "bool",
+    17: "bytea",
+    20: "int8",
+    21: "int2",
+    23: "int4",
+    25: "text",
+    26: "oid",
+    114: "json",
+    700: "float4",
+    701: "float8",
+    790: "money",
+    869: "inet",
+    1042: "char",
+    1043: "varchar",
+    1082: "date",
+    1083: "time",
+    1114: "timestamp",
+    1184: "timestamptz",
+    1186: "interval",
+    1700: "numeric",
+    2950: "uuid",
+    3802: "jsonb",
+};
+
 export default function ResultsTable({
     result,
     error,
     loading,
     readOnly = true,
+    tableName,
+    tableView,
+    onTableViewChange,
+    onRefreshTableView,
     onDeleteRow,
 }: ResultsTableProps) {
     const [copiedCell, setCopiedCell] = useState<string | null>(null);
@@ -65,15 +122,17 @@ export default function ResultsTable({
     const resizeStartX = useRef<number>(0);
     const resizeStartWidth = useRef<number>(0);
     const resizeObserverRef = useRef<ResizeObserver | null>(null);
+    const searchDebounceRef = useRef<number | null>(null);
+
+    const hasTableViewControls = Boolean(tableView && onTableViewChange);
 
     useEffect(() => {
-        console.log(
-            "ResultsTable props - readOnly:",
-            readOnly,
-            "hasDeleteHandler:",
-            !!onDeleteRow,
-        );
-    }, [readOnly, onDeleteRow]);
+        return () => {
+            if (searchDebounceRef.current !== null) {
+                window.clearTimeout(searchDebounceRef.current);
+            }
+        };
+    }, []);
 
     // Virtual scrolling constants
     const ROW_HEIGHT = density === "compact" ? 32 : 41;
@@ -90,15 +149,36 @@ export default function ResultsTable({
         return widths;
     }, [result, columnWidths]);
 
+    // Derive column types from OIDs returned by the server (accurate for any query)
+    const columnTypes = useMemo(() => {
+        if (!result) return {} as Record<string, string>;
+        const types: Record<string, string> = {};
+        result.fields.forEach((field, idx) => {
+            const oid = result.fieldTypes?.[idx];
+            types[field] = (oid !== undefined ? PG_OID_TYPES[oid] : undefined) ?? "text";
+        });
+        return types;
+    }, [result]);
+
     // Get visible columns (not hidden)
     const visibleFields = useMemo(() => {
         if (!result) return [];
         return result.fields.filter((field) => !hiddenColumns.has(field));
     }, [result, hiddenColumns]);
 
+    const totalResultRows = tableView?.totalRows ?? result?.rowCount ?? 0;
+    const activeSortField = tableView?.sortColumn ?? sortConfig.field;
+    const activeSortDirection =
+        tableView?.sortDirection ?? sortConfig.direction;
+
     // Sort rows based on sort config (with performance threshold)
     const sortedRows = useMemo(() => {
-        if (!result || !sortConfig.field) return result?.rows || [];
+        if (!result) return [];
+        if (hasTableViewControls) {
+            return result.rows;
+        }
+
+        if (!sortConfig.field) return result.rows;
 
         // Disable client-side sort for large datasets
         if (result.rowCount > SORT_THRESHOLD) {
@@ -135,7 +215,7 @@ export default function ResultsTable({
         });
 
         return sorted;
-    }, [result, sortConfig]);
+    }, [result, sortConfig, hasTableViewControls]);
 
     // Cap rows to prevent browser freeze
     const cappedRows = useMemo(() => {
@@ -143,9 +223,11 @@ export default function ResultsTable({
     }, [sortedRows]);
 
     // Calculate dataset warnings
-    const isLargeDataset = (result?.rowCount || 0) > LARGE_DATASET_WARNING;
-    const isSortDisabled = (result?.rowCount || 0) > SORT_THRESHOLD;
-    const isRowsCapped = sortedRows.length > MAX_RENDERABLE_ROWS;
+    const isLargeDataset = totalResultRows > LARGE_DATASET_WARNING;
+    const isSortDisabled =
+        !hasTableViewControls && totalResultRows > SORT_THRESHOLD;
+    const isRowsCapped =
+        !hasTableViewControls && sortedRows.length > MAX_RENDERABLE_ROWS;
 
     // Calculate visible rows based on scroll position
     const visibleRange = useMemo(() => {
@@ -211,6 +293,19 @@ export default function ResultsTable({
     };
 
     const handleSort = (field: string) => {
+        if (tableView && onTableViewChange) {
+            onTableViewChange({
+                sortColumn: field,
+                sortDirection:
+                    tableView.sortColumn === field &&
+                    tableView.sortDirection === "asc"
+                        ? "desc"
+                        : "asc",
+                page: 1,
+            });
+            return;
+        }
+
         // Prevent sort on large datasets
         if (isSortDisabled) return;
 
@@ -348,17 +443,89 @@ export default function ResultsTable({
     }
 
     if (error) {
+        // Try to extract structured PG error fields from the message
+        const pgCode = error.match(/\b([0-9A-Z]{5})\b/)?.[1];
+        const hintMatch = error.match(/HINT[:\s]+(.+?)(?:\n|$)/i);
+        const detailMatch = error.match(/DETAIL[:\s]+(.+?)(?:\n|$)/i);
+        const positionMatch = error.match(/position[:\s]+(\d+)/i);
+        const hint = hintMatch?.[1]?.trim();
+        const detail = detailMatch?.[1]?.trim();
+        const position = positionMatch?.[1];
+
+        // Clean message — strip trailing structured fields
+        const cleanMessage = error
+            .replace(/\n?(HINT|DETAIL|CONTEXT|WHERE|POSITION)[:\s][\s\S]*/i, "")
+            .trim();
+
         return (
             <div
-                className="px-4 py-3 text-[12px] border"
+                className="m-3 border text-[12px]"
                 style={{
-                    background: "#1a0505",
-                    borderColor: "var(--error)",
-                    color: "var(--error)",
+                    background: "rgba(255,45,85,0.04)",
+                    borderColor: "rgba(255,45,85,0.35)",
+                    borderLeft: "3px solid var(--error)",
                 }}
             >
-                <div className="uppercase tracking-wide mb-2">Query Error</div>
-                <div style={{ color: "var(--text-muted)" }}>{error}</div>
+                {/* Header */}
+                <div
+                    className="flex items-center gap-3 px-4 py-2 border-b"
+                    style={{ borderColor: "rgba(255,45,85,0.2)" }}
+                >
+                    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="var(--error)" strokeWidth="1.5" strokeLinecap="round">
+                        <circle cx="6.5" cy="6.5" r="5.5" />
+                        <line x1="6.5" y1="4" x2="6.5" y2="7" />
+                        <circle cx="6.5" cy="9" r="0.5" fill="var(--error)" stroke="none" />
+                    </svg>
+                    <span
+                        className="uppercase tracking-widest text-[10px] font-bold"
+                        style={{ color: "var(--error)" }}
+                    >
+                        query error
+                    </span>
+                    {pgCode && (
+                        <span
+                            className="ml-auto px-2 py-0.5 text-[10px] font-mono border"
+                            style={{
+                                color: "var(--error)",
+                                borderColor: "rgba(255,45,85,0.3)",
+                            }}
+                        >
+                            {pgCode}
+                        </span>
+                    )}
+                </div>
+
+                {/* Main message */}
+                <div className="px-4 py-3" style={{ color: "#e8a0aa", fontFamily: "var(--font-mono)", lineHeight: 1.6 }}>
+                    {cleanMessage}
+                </div>
+
+                {/* Structured fields */}
+                {(detail || hint || position) && (
+                    <div
+                        className="px-4 pb-3 flex flex-col gap-1.5"
+                        style={{ borderTop: "1px solid rgba(255,45,85,0.1)" }}
+                    >
+                        {detail && (
+                            <div className="flex gap-2 pt-2">
+                                <span className="text-[10px] uppercase tracking-wider flex-shrink-0 pt-px" style={{ color: "rgba(255,45,85,0.5)", width: 48 }}>detail</span>
+                                <span className="text-[11px]" style={{ color: "#7a8a90" }}>{detail}</span>
+                            </div>
+                        )}
+                        {hint && (
+                            <div className="flex gap-2">
+                                <span className="text-[10px] uppercase tracking-wider flex-shrink-0 pt-px" style={{ color: "rgba(0,255,136,0.5)", width: 48 }}>hint</span>
+                                <span className="text-[11px]" style={{ color: "rgba(0,255,136,0.7)" }}>{hint}</span>
+                            </div>
+                        )}
+                        {position && (
+                            <div className="flex gap-2">
+                                <span className="text-[10px] uppercase tracking-wider flex-shrink-0 pt-px" style={{ color: "rgba(0,229,255,0.5)", width: 48 }}>pos</span>
+                                <span className="text-[11px]" style={{ color: "rgba(0,229,255,0.7)" }}>character {position}</span>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         );
     }
@@ -405,16 +572,24 @@ export default function ResultsTable({
             >
                 <div className="flex items-center gap-3">
                     <span>
-                        RESULTS ({result.rowCount.toLocaleString()} ROWS)
+                        RESULTS ({totalResultRows.toLocaleString()} ROWS)
                     </span>
-                    <span>│</span>
-                    <span>{result.fields.length} COLS</span>
-                    {sortConfig.field && !isSortDisabled && (
+                    {tableName && (
                         <>
                             <span>│</span>
                             <span style={{ color: "var(--text-primary)" }}>
-                                SORTED BY: {sortConfig.field}{" "}
-                                {sortConfig.direction === "asc" ? "↑" : "↓"}
+                                {tableName}
+                            </span>
+                        </>
+                    )}
+                    <span>│</span>
+                    <span>{result.fields.length} COLS</span>
+                    {activeSortField && !isSortDisabled && (
+                        <>
+                            <span>│</span>
+                            <span style={{ color: "var(--text-primary)" }}>
+                                SORTED BY: {activeSortField}{" "}
+                                {activeSortDirection === "asc" ? "↑" : "↓"}
                             </span>
                         </>
                     )}
@@ -467,6 +642,19 @@ export default function ResultsTable({
                     )}
                 </div>
                 <div className="flex items-center gap-2">
+                    {tableView && onRefreshTableView && (
+                        <button
+                            onClick={onRefreshTableView}
+                            className="px-2 py-0.5 hover:opacity-80 transition-opacity border text-[10px]"
+                            style={{
+                                borderColor: "var(--border)",
+                                color: "var(--text-muted)",
+                            }}
+                            title="Refresh current table preview"
+                        >
+                            REFRESH
+                        </button>
+                    )}
                     <button
                         onClick={toggleDensity}
                         className="px-2 py-0.5 hover:opacity-80 transition-opacity border text-[10px]"
@@ -503,6 +691,139 @@ export default function ResultsTable({
                 </div>
             </div>
 
+            {tableView && onTableViewChange && (
+                <div
+                    className="px-3 py-2 flex flex-wrap items-center justify-between gap-3 border-b"
+                    style={{
+                        background: "var(--panel)",
+                        borderColor: "var(--border)",
+                    }}
+                >
+                    <div className="flex items-center gap-2 min-w-[280px] flex-1">
+                        <input
+                            key={tableView.searchQuery}
+                            defaultValue={tableView.searchQuery}
+                            onChange={(e) => {
+                                if (searchDebounceRef.current !== null) {
+                                    window.clearTimeout(
+                                        searchDebounceRef.current,
+                                    );
+                                }
+
+                                const nextValue = e.target.value;
+                                searchDebounceRef.current = window.setTimeout(
+                                    () => {
+                                        onTableViewChange({
+                                            searchQuery: nextValue,
+                                            page: 1,
+                                        });
+                                    },
+                                    250,
+                                );
+                            }}
+                            placeholder="Filter rows across visible columns..."
+                            className="min-w-0 flex-1 px-3 py-1.5 text-[12px] border outline-none"
+                            style={{
+                                background: "var(--bg)",
+                                borderColor: "var(--border)",
+                                color: "var(--text-primary)",
+                            }}
+                        />
+                        {tableView.searchQuery && (
+                            <button
+                                onClick={() =>
+                                    onTableViewChange({
+                                        searchQuery: "",
+                                        page: 1,
+                                    })
+                                }
+                                className="px-2 py-1 text-[10px] border hover:opacity-80 transition-opacity"
+                                style={{
+                                    borderColor: "var(--border)",
+                                    color: "var(--text-muted)",
+                                }}
+                            >
+                                CLEAR
+                            </button>
+                        )}
+                    </div>
+
+                    <div className="flex items-center gap-2 text-[11px] uppercase tracking-wide">
+                        <span style={{ color: "var(--text-muted)" }}>
+                            Showing {result.rows.length.toLocaleString()} of{" "}
+                            {tableView.totalRows.toLocaleString()}
+                        </span>
+                        <span style={{ color: "var(--text-muted)" }}>│</span>
+                        <label
+                            htmlFor="table-view-page-size"
+                            style={{ color: "var(--text-muted)" }}
+                        >
+                            Page Size
+                        </label>
+                        <select
+                            id="table-view-page-size"
+                            value={tableView.pageSize}
+                            onChange={(e) =>
+                                onTableViewChange({
+                                    pageSize: Number.parseInt(
+                                        e.target.value,
+                                        10,
+                                    ),
+                                    page: 1,
+                                })
+                            }
+                            className="px-2 py-1 text-[11px] border"
+                            style={{
+                                background: "var(--bg)",
+                                borderColor: "var(--border)",
+                                color: "var(--text-primary)",
+                            }}
+                        >
+                            <option value={25}>25</option>
+                            <option value={50}>50</option>
+                            <option value={100}>100</option>
+                            <option value={250}>250</option>
+                        </select>
+                        <button
+                            onClick={() =>
+                                onTableViewChange({
+                                    page: Math.max(1, tableView.page - 1),
+                                })
+                            }
+                            disabled={tableView.page <= 1}
+                            className="px-2 py-1 text-[10px] border hover:opacity-80 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
+                            style={{
+                                borderColor: "var(--border)",
+                                color: "var(--text-muted)",
+                            }}
+                        >
+                            PREV
+                        </button>
+                        <span style={{ color: "var(--text-primary)" }}>
+                            PAGE {tableView.page} OF {tableView.totalPages}
+                        </span>
+                        <button
+                            onClick={() =>
+                                onTableViewChange({
+                                    page: Math.min(
+                                        tableView.totalPages,
+                                        tableView.page + 1,
+                                    ),
+                                })
+                            }
+                            disabled={tableView.page >= tableView.totalPages}
+                            className="px-2 py-1 text-[10px] border hover:opacity-80 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
+                            style={{
+                                borderColor: "var(--border)",
+                                color: "var(--text-muted)",
+                            }}
+                        >
+                            NEXT
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* Results Table */}
             <div
                 ref={scrollContainerRef}
@@ -511,252 +832,276 @@ export default function ResultsTable({
                 style={{ background: "var(--bg)" }}
             >
                 <div className="min-w-full">
-                    {/* Header */}
+                    {/* ── Header ─────────────────────────────────────────── */}
                     <div
-                        className="sticky top-0 z-10 flex border-b"
+                        className="sticky top-0 z-20 flex border-b"
                         style={{
-                            background: "var(--panel)",
-                            borderColor: "var(--border)",
+                            background: "var(--panel-elevated)",
+                            borderColor: "var(--border-bright)",
                         }}
                     >
-                        {/* Row Actions Header */}
+                        {/* Row-number header cell */}
                         <div
-                            className="px-3 py-2 text-left text-[11px] uppercase tracking-wider whitespace-nowrap flex-shrink-0"
+                            className="sticky left-0 z-30 flex-shrink-0 flex items-center justify-center text-[10px] select-none"
                             style={{
-                                color: "var(--text-muted)",
-                                width: readOnly ? "130px" : "190px",
-                                minWidth: readOnly ? "130px" : "190px",
+                                width: ROW_NUM_WIDTH,
+                                minWidth: ROW_NUM_WIDTH,
+                                background: "var(--panel-elevated)",
                                 borderRight: "1px solid var(--grid-line)",
+                                borderBottom: "1px solid var(--border-bright)",
+                                color: "#2a3f50",
+                            }}
+                        >
+                            #
+                        </div>
+
+                        {/* Actions header */}
+                        <div
+                            className="flex-shrink-0 flex items-center justify-center text-[10px] uppercase tracking-wider"
+                            style={{
+                                width: readOnly ? 100 : 150,
+                                minWidth: readOnly ? 100 : 150,
+                                background: "var(--panel-elevated)",
+                                borderRight: "1px solid var(--grid-line)",
+                                borderBottom: "1px solid var(--border-bright)",
+                                color: "#6a8aaa",
                             }}
                         >
                             Actions
                         </div>
-                        {visibleFields.map((field, idx) => (
-                            <div
-                                key={field}
-                                className="px-3 py-2 text-left text-[11px] uppercase tracking-wider whitespace-nowrap flex-shrink-0 relative select-none"
-                                style={{
-                                    color: "var(--text-muted)",
-                                    width: `${effectiveColumnWidths[field] || 180}px`,
-                                    minWidth: `${effectiveColumnWidths[field] || 180}px`,
-                                    borderRight:
-                                        idx === visibleFields.length - 1
-                                            ? "transparent"
-                                            : "1px solid var(--grid-line)",
-                                    paddingRight: "24px",
-                                }}
-                                onContextMenu={(e) => {
-                                    e.preventDefault();
-                                    toggleColumnVisibility(field);
-                                }}
-                            >
+
+                        {/* Column headers */}
+                        {visibleFields.map((field, idx) => {
+                            const isActiveSort = activeSortField === field && !isSortDisabled;
+                            const colType = columnTypes[field];
+                            const colW = effectiveColumnWidths[field] || 180;
+
+                            return (
                                 <div
-                                    className="flex items-center justify-between cursor-pointer hover:opacity-70 transition-opacity"
-                                    onClick={() => handleSort(field)}
-                                    title={
-                                        isSortDisabled
-                                            ? "Sort disabled - use ORDER BY in query"
-                                            : "Click to sort, right-click to hide"
-                                    }
+                                    key={field}
+                                    className="flex-shrink-0 relative select-none"
                                     style={{
-                                        opacity: isSortDisabled ? 0.5 : 1,
+                                        width: colW,
+                                        minWidth: colW,
+                                        borderRight: idx === visibleFields.length - 1 ? "none" : "1px solid var(--grid-line)",
+                                        borderBottom: "1px solid var(--border-bright)",
+                                        paddingRight: 20,
                                     }}
+                                    onContextMenu={(e) => { e.preventDefault(); toggleColumnVisibility(field); }}
                                 >
-                                    <span className="truncate flex-1">
-                                        {field}
-                                    </span>
-                                    {sortConfig.field === field &&
-                                        !isSortDisabled && (
-                                            <span className="ml-1 text-[10px]">
-                                                {sortConfig.direction === "asc"
-                                                    ? "↑"
-                                                    : "↓"}
-                                            </span>
-                                        )}
-                                </div>
-
-                                {/* Resize Handle */}
-                                <div
-                                    className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500/30 transition-colors"
-                                    onMouseDown={(e) => startResize(field, e)}
-                                    title="Drag to resize"
-                                />
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Body */}
-                    <div
-                        className="relative"
-                        style={{
-                            height: `${cappedRows.length * ROW_HEIGHT}px`,
-                        }}
-                    >
-                        {/* Render only visible rows */}
-                        {cappedRows
-                            .slice(visibleRange.start, visibleRange.end)
-                            .map((row, idx) => {
-                                const rowIdx = visibleRange.start + idx;
-                                return (
                                     <div
-                                        key={rowIdx}
-                                        className="absolute w-full flex transition-colors border-b group/row"
-                                        style={{
-                                            top: `${rowIdx * ROW_HEIGHT}px`,
-                                            height: `${ROW_HEIGHT}px`,
-                                            borderColor: "var(--grid-line)",
-                                            background: "var(--bg)",
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            e.currentTarget.style.background =
-                                                "var(--panel)";
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            e.currentTarget.style.background =
-                                                "var(--bg)";
-                                        }}
+                                        className="flex flex-col items-center justify-center gap-0.5 cursor-pointer hover:opacity-80 transition-opacity px-3 py-1.5"
+                                        onClick={() => handleSort(field)}
+                                        title={isSortDisabled ? "Sort disabled — use ORDER BY" : "Click to sort · right-click to hide"}
+                                        style={{ opacity: isSortDisabled ? 0.4 : 1 }}
                                     >
-                                        {/* Row Actions Cell */}
-                                        <div
-                                            className="px-2 py-2 flex items-center gap-1 justify-center flex-shrink-0"
-                                            style={{
-                                                width: readOnly
-                                                    ? "130px"
-                                                    : "190px",
-                                                minWidth: readOnly
-                                                    ? "130px"
-                                                    : "190px",
-                                                borderRight:
-                                                    "1px solid var(--grid-line)",
-                                            }}
-                                        >
-                                            <button
-                                                onClick={() =>
-                                                    setExpandedRow(row)
-                                                }
-                                                className="px-2 py-1 rounded border hover:opacity-80 transition-opacity text-[11px] font-medium"
-                                                style={{
-                                                    color: "var(--accent)",
-                                                    borderColor:
-                                                        "var(--border)",
-                                                    background: "var(--panel)",
-                                                }}
-                                                title="View all fields for this row"
+                                        <div className="flex items-center gap-1">
+                                            <span
+                                                className="truncate text-[10px] tracking-widest uppercase font-medium"
+                                                style={{ color: isActiveSort ? "var(--cyan)" : "#6a8aaa" }}
                                             >
-                                                view
-                                            </button>
-                                            <button
-                                                onClick={() =>
-                                                    copyRowAsJSON(row)
-                                                }
-                                                className="px-2 py-1 rounded border hover:opacity-80 transition-opacity text-[11px] font-medium"
-                                                style={{
-                                                    color: "var(--text-secondary)",
-                                                    borderColor:
-                                                        "var(--border)",
-                                                    background: "var(--panel)",
-                                                }}
-                                                title="Copy entire row as JSON"
-                                            >
-                                                copy
-                                            </button>
-                                            {!readOnly && onDeleteRow && (
-                                                <button
-                                                    onClick={() => {
-                                                        console.log(
-                                                            "Delete button clicked!",
-                                                        );
-                                                        onDeleteRow(row);
-                                                    }}
-                                                    className="px-2 py-1 rounded border hover:opacity-80 transition-opacity text-[11px] font-medium"
-                                                    style={{
-                                                        color: "var(--warning)",
-                                                        borderColor:
-                                                            "var(--warning)",
-                                                        background:
-                                                            "var(--panel)",
-                                                    }}
-                                                    title="Delete this row"
-                                                >
-                                                    delete
-                                                </button>
+                                                {field}
+                                            </span>
+                                            {isActiveSort && (
+                                                <span style={{ color: "var(--cyan)", flexShrink: 0, fontSize: 10 }}>
+                                                    {activeSortDirection === "asc" ? "↑" : "↓"}
+                                                </span>
                                             )}
                                         </div>
-                                        {visibleFields.map((field) => {
-                                            const cellId = `${rowIdx}-${field}`;
-                                            const value = row[field];
-                                            const displayValue =
-                                                value === null
-                                                    ? "␀"
-                                                    : typeof value === "object"
-                                                      ? JSON.stringify(value)
-                                                      : String(value);
+                                        {colType && (
+                                            <span
+                                                className="text-[9px] tracking-wide"
+                                                style={{ color: "#1e3a50" }}
+                                            >
+                                                {colType}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {/* Resize handle */}
+                                    <div
+                                        className="absolute top-0 right-0 w-1 h-full cursor-col-resize transition-colors"
+                                        style={{ background: resizingColumn === field ? "var(--cyan)" : "transparent" }}
+                                        onMouseDown={(e) => startResize(field, e)}
+                                        onMouseEnter={(e) => { if (resizingColumn !== field) (e.currentTarget as HTMLElement).style.background = "rgba(0,229,255,0.3)"; }}
+                                        onMouseLeave={(e) => { if (resizingColumn !== field) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                                        title="Drag to resize"
+                                    />
+                                </div>
+                            );
+                        })}
+                    </div>
 
-                                            return (
+                    {/* ── Body ───────────────────────────────────────────── */}
+                    <div className="relative" style={{ height: `${cappedRows.length * ROW_HEIGHT}px` }}>
+                        {cappedRows.slice(visibleRange.start, visibleRange.end).map((row, idx) => {
+                            const rowIdx = visibleRange.start + idx;
+                            const rowBg = rowIdx % 2 === 0 ? "var(--bg)" : "rgba(255,255,255,0.012)";
+
+                            return (
+                                <div
+                                    key={rowIdx}
+                                    className="absolute flex group/row"
+                                    style={{
+                                        top: `${rowIdx * ROW_HEIGHT}px`,
+                                        height: `${ROW_HEIGHT}px`,
+                                        minWidth: "100%",
+                                        background: rowBg,
+                                    }}
+                                    onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(0,229,255,0.04)"; }}
+                                    onMouseLeave={(e) => { e.currentTarget.style.background = rowBg; }}
+                                >
+                                    {/* Row number — sticky left */}
+                                    <div
+                                        className="sticky left-0 z-10 flex-shrink-0 flex items-center justify-center select-none"
+                                        style={{
+                                            width: ROW_NUM_WIDTH,
+                                            minWidth: ROW_NUM_WIDTH,
+                                            fontSize: 10,
+                                            color: "#1e3048",
+                                            background: "inherit",
+                                            borderRight: "1px solid #1a2840",
+                                            borderBottom: "1px solid #1a2840",
+                                        }}
+                                    >
+                                        {rowIdx + 1}
+                                    </div>
+
+                                    {/* Actions — sticky after row numbers, visible on hover */}
+                                    <div
+                                        className="flex-shrink-0 flex items-center gap-1 justify-center opacity-0 group-hover/row:opacity-100 transition-opacity"
+                                        style={{
+                                            width: readOnly ? 100 : 150,
+                                            minWidth: readOnly ? 100 : 150,
+                                            background: "inherit",
+                                            borderRight: "1px solid #1a2840",
+                                            borderBottom: "1px solid #1a2840",
+                                        }}
+                                    >
+                                        <button
+                                            onClick={() => setExpandedRow(row)}
+                                            className="px-1.5 py-0.5 text-[10px] uppercase tracking-wide border transition-all hover:border-current"
+                                            style={{ color: "var(--accent)", borderColor: "rgba(0,255,136,0.3)" }}
+                                            title="View all fields"
+                                        >
+                                            view
+                                        </button>
+                                        <button
+                                            onClick={() => copyRowAsJSON(row)}
+                                            className="px-1.5 py-0.5 text-[10px] uppercase tracking-wide border transition-all hover:border-current"
+                                            style={{ color: "var(--text-muted)", borderColor: "var(--border-bright)" }}
+                                            title="Copy row as JSON"
+                                        >
+                                            copy
+                                        </button>
+                                        {!readOnly && onDeleteRow && (
+                                            <button
+                                                onClick={() => onDeleteRow(row)}
+                                                className="px-1.5 py-0.5 text-[10px] uppercase tracking-wide border transition-all hover:border-current"
+                                                style={{ color: "var(--error)", borderColor: "rgba(255,45,85,0.3)" }}
+                                                title="Delete row"
+                                            >
+                                                del
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {/* Data cells */}
+                                    {visibleFields.map((field, fieldIdx) => {
+                                        const cellId = `${rowIdx}-${field}`;
+                                        const value = row[field];
+                                        const isNull = value === null;
+                                        const displayValue = isNull
+                                            ? "null"
+                                            : typeof value === "object"
+                                              ? JSON.stringify(value)
+                                              : String(value);
+                                        const isLastField = fieldIdx === visibleFields.length - 1;
+                                        const colW = effectiveColumnWidths[field] || 180;
+                                        // Truncation: chars-per-pixel ~0.13 at 12px mono
+                                        const isTruncated = !isNull && displayValue.length > Math.floor(colW * 0.13);
+
+                                        return (
+                                            <div
+                                                key={field}
+                                                className="text-[12px] whitespace-nowrap group/cell relative flex items-center flex-shrink-0"
+                                                style={{
+                                                    width: colW,
+                                                    minWidth: colW,
+                                                    height: "100%",
+                                                    borderBottom: "1px solid #1a2840",
+                                                    borderRight: isLastField ? "none" : "1px solid #1a2840",
+                                                }}
+                                            >
+                                                {/* Cell text with truncation fade */}
                                                 <div
-                                                    key={field}
-                                                    className="px-3 py-2 text-[12px] whitespace-nowrap group relative flex items-center flex-shrink-0"
-                                                    style={{
-                                                        color:
-                                                            value === null
-                                                                ? "var(--text-muted)"
-                                                                : "var(--text-primary)",
-                                                        width: `${effectiveColumnWidths[field] || 180}px`,
-                                                        minWidth: `${effectiveColumnWidths[field] || 180}px`,
-                                                    }}
+                                                    className="relative flex-1 overflow-hidden px-3"
+                                                    style={{ height: "100%", display: "flex", alignItems: "center" }}
                                                 >
                                                     <span
-                                                        className="truncate flex-1 cursor-pointer hover:underline"
-                                                        title={
-                                                            value === null
-                                                                ? "NULL"
-                                                                : displayValue
-                                                        }
-                                                        onClick={() =>
-                                                            setExpandedCell({
-                                                                row,
-                                                                field,
-                                                                value,
-                                                            })
-                                                        }
+                                                        className="truncate w-full text-center cursor-default"
+                                                        style={{
+                                                            color: isNull ? "var(--text-dim)" : "var(--text-primary)",
+                                                            fontStyle: isNull ? "italic" : "normal",
+                                                        }}
+                                                        title={isNull ? "NULL" : displayValue}
+                                                        onDoubleClick={() => !isNull && setExpandedCell({ row, field, value })}
                                                     >
                                                         {displayValue}
                                                     </span>
-                                                    <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 ml-2 flex-shrink-0">
-                                                        <button
-                                                            onClick={() =>
-                                                                copyToClipboard(
-                                                                    value ===
-                                                                        null
-                                                                        ? "NULL"
-                                                                        : displayValue,
-                                                                    cellId,
-                                                                )
-                                                            }
-                                                            className="px-2 py-1 rounded border hover:opacity-80 transition-opacity text-[12px] font-medium leading-none"
+                                                    {/* Truncation fade + expand hint */}
+                                                    {isTruncated && (
+                                                        <div
+                                                            className="absolute right-0 top-0 h-full flex items-center pr-1 pointer-events-none"
                                                             style={{
-                                                                color: "var(--text-secondary)",
-                                                                borderColor:
-                                                                    "var(--border)",
-                                                                background:
-                                                                    "var(--panel)",
+                                                                background: "linear-gradient(to right, transparent, var(--bg) 60%)",
+                                                                width: 32,
                                                             }}
-                                                            title="Copy cell"
                                                         >
-                                                            {copiedCell ===
-                                                            cellId ? (
-                                                                "copied"
-                                                            ) : (
-                                                                <>copy</>
-                                                            )}
-                                                        </button>
-                                                    </div>
+                                                            <svg
+                                                                width="10" height="10" viewBox="0 0 10 10" fill="none"
+                                                                stroke="#2a3f50" strokeWidth="1.2" strokeLinecap="round"
+                                                                style={{ marginLeft: "auto" }}
+                                                            >
+                                                                <path d="M1 5h8M6 2l3 3-3 3" />
+                                                            </svg>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                            );
-                                        })}
-                                    </div>
-                                );
-                            })}
+
+                                                {/* Copy button on hover */}
+                                                {!isNull && (
+                                                    <button
+                                                        onClick={() => copyToClipboard(displayValue, cellId)}
+                                                        className="opacity-0 group-hover/cell:opacity-100 transition-opacity flex-shrink-0 mr-1"
+                                                        style={{
+                                                            color: copiedCell === cellId ? "var(--accent)" : "var(--text-muted)",
+                                                            background: "none",
+                                                            border: "none",
+                                                            padding: "2px",
+                                                            cursor: "pointer",
+                                                            display: "flex",
+                                                            alignItems: "center",
+                                                        }}
+                                                        title="Copy cell value"
+                                                    >
+                                                        {copiedCell === cellId ? (
+                                                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                                                <polyline points="2,6 5,9 10,3" />
+                                                            </svg>
+                                                        ) : (
+                                                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                                                <rect x="4" y="1" width="7" height="8" />
+                                                                <path d="M1 4v7h7" strokeOpacity="0.5" />
+                                                            </svg>
+                                                        )}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
             </div>

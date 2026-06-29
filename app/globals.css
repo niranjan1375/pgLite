@@ -1,42 +1,54 @@
 @import "tailwindcss";
 
 /**
- * Brutal Hacker Minimal Design System
- * No softness. Sharp edges. High contrast. Monospace everything.
+ * Cyberpunk Dev Tool Design System
+ * Dark. Neon. Sharp. Developer-grade.
  */
 
 :root {
-    /* Base Colors */
-    --bg: #0b0f14;
-    --panel: #11161d;
-    --border: #1f2630;
-    --text-primary: #e6edf3;
-    --text-muted: #8b949e;
+    /* Base — Deep blue-black, not pure black */
+    --bg: #080c12;
+    --panel: #0b0f18;
+    --panel-elevated: #0f1520;
+    --border: #16202e;
+    --border-bright: #1e3048;
 
-    /* Accent */
-    --accent: #22c55e;
-    --accent-hover: #16a34a;
+    /* Text */
+    --text-primary: #b8d0e8;
+    --text-muted: #3d5570;
+    --text-dim: #253a50;
+
+    /* Primary Accent — Neon Green */
+    --accent: #00ff88;
+    --accent-hover: #00cc70;
+    --accent-dim: rgba(0, 255, 136, 0.08);
+    --accent-glow: 0 0 8px rgba(0, 255, 136, 0.45), 0 0 24px rgba(0, 255, 136, 0.12);
+
+    /* Secondary — Cyan */
+    --cyan: #00e5ff;
+    --cyan-dim: rgba(0, 229, 255, 0.08);
+    --cyan-glow: 0 0 8px rgba(0, 229, 255, 0.4), 0 0 20px rgba(0, 229, 255, 0.1);
 
     /* Environment Colors */
-    --env-dev: #10b981;
-    --env-staging: #f59e0b;
-    --env-prod: #ef4444;
+    --env-dev: #00ff88;
+    --env-staging: #ff9500;
+    --env-prod: #ff2d55;
 
     /* Status */
-    --error: #ef4444;
-    --warning: #f59e0b;
-    --success: #22c55e;
+    --error: #ff2d55;
+    --warning: #ff9500;
+    --success: #00ff88;
 
-    /* Grid */
-    --grid-line: #1a1f28;
+    /* Grid / table lines */
+    --grid-line: #1a2840;
 
     /* Layout */
-    --activity-bar: 40px;
-    --status-bar: 26px;
+    --activity-bar: 44px;
+    --status-bar: 28px;
     --row-height: 32px;
     --border-width: 1px;
 
-    /* Typography - Full Monospace */
+    /* Typography */
     --font-mono:
         "SF Mono", "Monaco", "Inconsolata", "Fira Mono", "Droid Sans Mono",
         "Source Code Pro", monospace;
@@ -59,7 +71,7 @@ body {
     -moz-osx-font-smoothing: grayscale;
 }
 
-/* Subtle scanline grid background */
+/* Cyber dot-grid background */
 body::before {
     content: "";
     position: fixed;
@@ -67,22 +79,28 @@ body::before {
     left: 0;
     width: 100%;
     height: 100%;
-    background-image: repeating-linear-gradient(
-        0deg,
-        transparent,
-        transparent 1px,
-        rgba(26, 31, 40, 0.3) 1px,
-        rgba(26, 31, 40, 0.3) 2px
-    );
+    background-image:
+        radial-gradient(circle, rgba(0, 229, 255, 0.025) 1px, transparent 1px);
+    background-size: 28px 28px;
     pointer-events: none;
     z-index: 9999;
-    opacity: 0.15;
 }
 
-/* Sharp scrollbars */
+/* Thin vignette on edges */
+body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background:
+        radial-gradient(ellipse at center, transparent 60%, rgba(0, 0, 0, 0.5) 100%);
+    pointer-events: none;
+    z-index: 9998;
+}
+
+/* Sharp scrollbars — cyber style */
 ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -90,15 +108,14 @@ body::before {
 }
 
 ::-webkit-scrollbar-thumb {
-    background: var(--border);
-    border: none;
+    background: var(--border-bright);
 }
 
 ::-webkit-scrollbar-thumb:hover {
     background: var(--text-muted);
 }
 
-/* Remove all focus outlines, replace with sharp borders */
+/* Focus — neon outline */
 *:focus {
     outline: none;
 }
@@ -108,10 +125,10 @@ body::before {
     outline-offset: -1px;
 }
 
-/* Sharp selection */
+/* Selection */
 ::selection {
-    background: var(--accent);
-    color: var(--bg);
+    background: rgba(0, 255, 136, 0.25);
+    color: var(--text-primary);
 }
 
 /* Monospace inputs */
@@ -123,10 +140,12 @@ button {
     font-size: 13px;
 }
 
-/* No rounded corners anywhere */
+/* No rounded corners by default — override per-component as needed */
 * {
     border-radius: 0 !important;
 }
+
+/* ─── Monaco Editor Glyph — Run button in gutter ─────────────────────── */
 
 .monaco-editor .margin-view-overlays .cgmr.statement-run-glyph,
 .monaco-editor .margin-view-overlays .statement-run-glyph {
@@ -136,9 +155,8 @@ button {
     width: 100%;
     height: 100%;
     cursor: pointer;
-    color: #ffffff !important;
-    background: rgba(34, 197, 94, 0.95);
-    box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.95) inset;
+    color: #000 !important;
+    background: var(--accent);
     opacity: 1;
 }
 
@@ -148,47 +166,103 @@ button {
 }
 
 .monaco-editor .margin-view-overlays .statement-run-glyph:hover {
-    background: rgba(16, 185, 129, 1);
+    background: var(--accent-hover);
+    box-shadow: var(--accent-glow);
 }
 
 @keyframes statementRunSpin {
-    from {
-        transform: rotate(0deg);
-    }
-    to {
-        transform: rotate(360deg);
-    }
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
 }
 
 @keyframes statementRunPulse {
-    0% {
-        transform: scale(1);
-        filter: brightness(1);
-    }
-    50% {
-        transform: scale(1.14);
-        filter: brightness(1.25);
-    }
-    100% {
-        transform: scale(1);
-        filter: brightness(1);
-    }
+    0%   { transform: scale(1);    filter: brightness(1); }
+    50%  { transform: scale(1.14); filter: brightness(1.4); }
+    100% { transform: scale(1);    filter: brightness(1); }
 }
 
 .monaco-editor .margin-view-overlays .statement-run-glyph--running {
-    background: rgba(59, 130, 246, 0.95) !important;
-    box-shadow: 0 0 0 1px rgba(59, 130, 246, 1) inset;
+    background: var(--cyan) !important;
+    box-shadow: var(--cyan-glow) !important;
 }
 
 .monaco-editor .margin-view-overlays .statement-run-glyph--running::before {
     animation: statementRunSpin 0.75s linear infinite;
+    color: #000 !important;
 }
 
 .monaco-editor .margin-view-overlays .statement-run-glyph--success {
-    background: rgba(34, 197, 94, 1) !important;
-    box-shadow: 0 0 0 1px rgba(22, 163, 74, 1) inset;
+    background: var(--accent) !important;
+    box-shadow: var(--accent-glow) !important;
 }
 
 .monaco-editor .margin-view-overlays .statement-run-glyph--success::before {
     animation: statementRunPulse 0.45s ease-out;
+}
+
+/* ─── Neon glow utilities ─────────────────────────────────────────────── */
+
+.neon-green {
+    color: var(--accent);
+    text-shadow: 0 0 8px rgba(0, 255, 136, 0.6);
+}
+
+.neon-cyan {
+    color: var(--cyan);
+    text-shadow: 0 0 8px rgba(0, 229, 255, 0.6);
+}
+
+.glow-border-green {
+    border-color: var(--accent) !important;
+    box-shadow: var(--accent-glow) !important;
+}
+
+/* ─── Cyber button base ───────────────────────────────────────────────── */
+
+.cyber-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    border: 1px solid var(--border-bright);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 0.12s, border-color 0.12s, box-shadow 0.12s;
+    white-space: nowrap;
+}
+
+.cyber-btn:hover {
+    color: var(--text-primary);
+    border-color: var(--text-muted);
+}
+
+.cyber-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.cyber-btn-accent {
+    color: var(--accent);
+    border-color: rgba(0, 255, 136, 0.35);
+}
+
+.cyber-btn-accent:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    box-shadow: var(--accent-glow);
+}
+
+.cyber-btn-warn {
+    color: var(--warning);
+    border-color: rgba(255, 149, 0, 0.35);
+}
+
+.cyber-btn-warn:hover {
+    color: var(--warning);
+    border-color: var(--warning);
+    box-shadow: 0 0 8px rgba(255, 149, 0, 0.3);
 }

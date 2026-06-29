@@ -15,6 +15,58 @@ interface EnvironmentStripProps {
     onReadOnlyToggle: () => void;
 }
 
+function ChevronDown() {
+    return (
+        <svg width="9" height="9" viewBox="0 0 9 9" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+            <polyline points="1.5,3 4.5,6 7.5,3" />
+        </svg>
+    );
+}
+
+function Dropdown({
+    items,
+    activeItem,
+    activeColor,
+    onSelect,
+    onClose,
+}: {
+    items: string[];
+    activeItem: string;
+    activeColor: string;
+    onSelect: (item: string) => void;
+    onClose: () => void;
+}) {
+    return (
+        <div
+            className="absolute top-full left-0 mt-0 z-50 border min-w-[160px] py-1"
+            style={{
+                background: "var(--panel-elevated)",
+                borderColor: "var(--border-bright)",
+                boxShadow: "0 8px 24px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4)",
+            }}
+        >
+            {items.map((item) => (
+                <button
+                    key={item}
+                    onClick={() => { onSelect(item); onClose(); }}
+                    className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-[11px] tracking-wide transition-colors hover:bg-white/5"
+                    style={{
+                        color: item === activeItem ? activeColor : "var(--text-muted)",
+                    }}
+                >
+                    {item === activeItem && (
+                        <span style={{ color: activeColor, fontSize: "8px" }}>◆</span>
+                    )}
+                    {item !== activeItem && (
+                        <span style={{ width: "8px", display: "inline-block" }} />
+                    )}
+                    {item}
+                </button>
+            ))}
+        </div>
+    );
+}
+
 export default function EnvironmentStrip({
     environment,
     database,
@@ -31,145 +83,138 @@ export default function EnvironmentStrip({
     const dbMenuRef = useRef<HTMLDivElement>(null);
 
     const envColor = getEnvironmentColor(environment);
+    const isProd = environment.includes("uat") || environment.includes("prod");
 
-    // Close menus on Escape
     useEscapeKey(() => {
         setShowEnvMenu(false);
         setShowDbMenu(false);
     }, showEnvMenu || showDbMenu);
 
-    // Close menus on outside click
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
-            if (
-                envMenuRef.current &&
-                !envMenuRef.current.contains(e.target as Node)
-            ) {
+            if (envMenuRef.current && !envMenuRef.current.contains(e.target as Node)) {
                 setShowEnvMenu(false);
             }
-            if (
-                dbMenuRef.current &&
-                !dbMenuRef.current.contains(e.target as Node)
-            ) {
+            if (dbMenuRef.current && !dbMenuRef.current.contains(e.target as Node)) {
                 setShowDbMenu(false);
             }
         };
-
         document.addEventListener("mousedown", handleClickOutside);
-        return () =>
-            document.removeEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
     return (
         <div
-            className="h-[32px] flex items-center gap-2 px-3 text-[11px] uppercase tracking-wide border-b"
+            className="flex items-center gap-0 border-b flex-shrink-0 text-[11px] tracking-wide"
             style={{
+                height: "32px",
                 background: "var(--panel)",
-                borderColor: "var(--border)",
+                borderColor: isProd ? `${envColor}30` : "var(--border)",
             }}
         >
-            {/* Environment */}
-            <div className="relative" ref={envMenuRef}>
+            {/* Environment selector */}
+            <div className="relative h-full" ref={envMenuRef}>
                 <button
-                    onClick={() => setShowEnvMenu(!showEnvMenu)}
-                    className="hover:opacity-80 transition-opacity flex items-center gap-1"
-                    style={{ color: envColor }}
+                    onClick={() => { setShowEnvMenu(!showEnvMenu); setShowDbMenu(false); }}
+                    className="flex items-center gap-1.5 h-full px-3 transition-all hover:bg-white/5"
+                    style={{
+                        color: envColor,
+                        fontWeight: 700,
+                        letterSpacing: "0.08em",
+                        textTransform: "uppercase",
+                        fontSize: "11px",
+                        textShadow: `0 0 10px ${envColor}60`,
+                        borderRight: "1px solid var(--border)",
+                        minWidth: "max-content",
+                    }}
                 >
+                    {/* Neon indicator dot */}
+                    <span
+                        style={{
+                            display: "inline-block",
+                            width: "5px",
+                            height: "5px",
+                            background: envColor,
+                            boxShadow: `0 0 6px ${envColor}, 0 0 12px ${envColor}80`,
+                            flexShrink: 0,
+                        }}
+                    />
                     {environment}
-                    <span className="text-[8px]">▼</span>
+                    <ChevronDown />
                 </button>
                 {showEnvMenu && (
-                    <div
-                        className="absolute top-full left-0 mt-1 z-50 border"
-                        style={{
-                            background: "var(--panel)",
-                            borderColor: "var(--border)",
-                        }}
-                    >
-                        {availableEnvironments.map((env) => (
-                            <button
-                                key={env}
-                                onClick={() => {
-                                    onEnvironmentChange(env);
-                                    setShowEnvMenu(false);
-                                }}
-                                className="block px-3 py-1.5 hover:bg-gray-800 text-left w-full whitespace-nowrap"
-                                style={{
-                                    color:
-                                        env === environment
-                                            ? envColor
-                                            : "var(--text-muted)",
-                                }}
-                            >
-                                {env}
-                            </button>
-                        ))}
-                    </div>
+                    <Dropdown
+                        items={availableEnvironments}
+                        activeItem={environment}
+                        activeColor={envColor}
+                        onSelect={onEnvironmentChange}
+                        onClose={() => setShowEnvMenu(false)}
+                    />
                 )}
             </div>
 
-            <span style={{ color: "var(--border)" }}>│</span>
-
-            {/* Database */}
-            <div className="relative" ref={dbMenuRef}>
+            {/* Database selector */}
+            <div className="relative h-full" ref={dbMenuRef}>
                 <button
-                    onClick={() => setShowDbMenu(!showDbMenu)}
-                    className="hover:opacity-80 transition-opacity flex items-center gap-1"
-                    style={{ color: "var(--text-primary)" }}
+                    onClick={() => { setShowDbMenu(!showDbMenu); setShowEnvMenu(false); }}
+                    className="flex items-center gap-1.5 h-full px-3 transition-all hover:bg-white/5"
+                    style={{
+                        color: "var(--text-primary)",
+                        borderRight: "1px solid var(--border)",
+                        minWidth: "max-content",
+                    }}
                 >
                     {database || (
-                        <span style={{ color: "var(--text-muted)" }}>
-                            loading...
-                        </span>
+                        <span style={{ color: "var(--text-dim)" }}>loading…</span>
                     )}
-                    <span className="text-[8px]">▼</span>
+                    <ChevronDown />
                 </button>
                 {showDbMenu && (
-                    <div
-                        className="absolute top-full left-0 mt-1 z-50 border max-h-64 overflow-auto"
-                        style={{
-                            background: "var(--panel)",
-                            borderColor: "var(--border)",
-                        }}
-                    >
-                        {availableDatabases.map((db) => (
-                            <button
-                                key={db}
-                                onClick={() => {
-                                    onDatabaseChange(db);
-                                    setShowDbMenu(false);
-                                }}
-                                className="block px-3 py-1.5 hover:bg-gray-800 text-left w-full whitespace-nowrap"
-                                style={{
-                                    color:
-                                        db === database
-                                            ? "var(--accent)"
-                                            : "var(--text-muted)",
-                                }}
-                            >
-                                {db}
-                            </button>
-                        ))}
-                    </div>
+                    <Dropdown
+                        items={availableDatabases}
+                        activeItem={database}
+                        activeColor="var(--accent)"
+                        onSelect={onDatabaseChange}
+                        onClose={() => setShowDbMenu(false)}
+                    />
                 )}
             </div>
 
+            {/* Read-only indicator (non-interactive label) */}
             {readOnly && (
-                <>
-                    <span style={{ color: "var(--border)" }}>│</span>
-                    <span style={{ color: "var(--warning)" }}>readonly</span>
-                </>
+                <span
+                    className="px-2 text-[10px] uppercase font-bold tracking-widest"
+                    style={{
+                        color: "var(--warning)",
+                        borderRight: "1px solid var(--border)",
+                        lineHeight: "32px",
+                    }}
+                >
+                    readonly
+                </span>
             )}
 
+            {/* RO/RW toggle — pushed to the right */}
             <button
                 onClick={onReadOnlyToggle}
-                className="ml-auto text-[10px] px-2 py-0.5 border hover:opacity-80 transition-opacity"
+                className="ml-auto flex items-center gap-1.5 px-3 h-full text-[10px] uppercase font-bold tracking-widest transition-all hover:bg-white/5"
                 style={{
-                    borderColor: readOnly ? "var(--warning)" : "var(--border)",
-                    color: readOnly ? "var(--warning)" : "var(--text-muted)",
+                    color: readOnly ? "var(--warning)" : "var(--text-dim)",
+                    borderLeft: "1px solid var(--border)",
                 }}
+                title={readOnly ? "Switch to read-write" : "Switch to read-only"}
             >
-                {readOnly ? "🔒 RO" : "🔓 RW"}
+                <span
+                    style={{
+                        display: "inline-block",
+                        width: "5px",
+                        height: "5px",
+                        background: readOnly ? "var(--warning)" : "var(--text-dim)",
+                        boxShadow: readOnly ? "0 0 5px var(--warning)" : "none",
+                        flexShrink: 0,
+                    }}
+                />
+                {readOnly ? "ro" : "rw"}
             </button>
         </div>
     );

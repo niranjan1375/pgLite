@@ -10,19 +10,38 @@ import {
 } from "react";
 import dynamic from "next/dynamic";
 import DatabaseTree from "@/components/DatabaseTree";
+import ExplainView from "@/components/ExplainView";
 import ResultsTable from "@/components/ResultsTable";
 import ActivityBar from "@/components/ActivityBar";
 import StatusBar from "@/components/StatusBar";
 import EnvironmentStrip from "@/components/EnvironmentStrip";
 import KeyboardHelp from "@/components/KeyboardHelp";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import QueryHistory, { type QueryHistoryItem } from "@/components/QueryHistory";
+import SaveQueryModal from "@/components/SaveQueryModal";
+import SavedQueries from "@/components/SavedQueries";
+import ContextPanel from "@/components/ContextPanel";
+import ContextModal from "@/components/ContextModal";
 import { type QueryTab, type QueryTabsRef } from "@/components/QueryTabs";
+import {
+    createSavedQuery,
+    readSavedQueries,
+    toggleSavedQueryStar,
+    writeSavedQueries,
+    type SavedQuery,
+    type SavedQueryInput,
+} from "@/lib/queryStorage";
 import {
     extractVariables,
     selectionOverlapsVariableBlock,
     validateVariableValues,
-    validateVariableReferences,
 } from "@/lib/workspace-utils";
+import {
+    findActiveProfile,
+    pickReferencedVariables,
+    resolveVariables,
+    type ContextProfile,
+} from "@/lib/variable-resolver";
 import { RefreshIcon } from "@/icons";
 
 const SQLEditor = dynamic(() => import("@/components/SQLEditor"), {
@@ -33,9 +52,13 @@ const QueryTabs = dynamic(() => import("@/components/QueryTabs"), {
     ssr: false,
 });
 
+const WORKSPACE_QUERY_TIMEOUT_MS = 120000;
+const ACTIVE_CONTEXT_PROFILE_KEY = "pgLite_activeContextProfile";
+
 interface QueryResult {
     rows: Record<string, unknown>[];
     rowCount: number;
+    totalRows?: number; // Full row count before truncation (present when truncated)
     fields: string[];
     truncated?: boolean;
     routedDatabase?: string; // Present when workspace mode auto-routes to a database
@@ -47,10 +70,39 @@ interface QueryError {
     rowCount?: number;
 }
 
+interface ExplainNode {
+    "Node Type": string;
+    Plans?: ExplainNode[];
+}
+
+interface ExplainResult {
+    isExplain: true;
+    explain: {
+        Plan: ExplainNode;
+        "Planning Time"?: number;
+        "Execution Time"?: number;
+    };
+    executionTime?: number;
+    routedDatabase?: string;
+}
+
+function isQueryError(
+    data: QueryResult | QueryError | ExplainResult,
+): data is QueryError {
+    return "error" in data;
+}
+
+function isExplainResult(
+    data: QueryResult | QueryError | ExplainResult,
+): data is ExplainResult {
+    return "isExplain" in data && data.isExplain;
+}
+
 interface Table {
     schema: string;
     name: string;
     database?: string;
+    primaryKeys?: string[];
 }
 
 interface Column {
@@ -65,9 +117,25 @@ interface WorkspaceSchema {
         schema: string;
         tables: {
             name: string;
+            primaryKeys?: string[];
             columns: Column[];
         }[];
     }[];
+}
+
+interface StandardSchemaPayload {
+    tableColumns: Record<string, Column[]>;
+    primaryKeysByTable: Record<string, string[]>;
+}
+
+interface TableViewerState {
+    page: number;
+    pageSize: number;
+    totalRows: number;
+    totalPages: number;
+    sortColumn: string | null;
+    sortDirection: "asc" | "desc";
+    searchQuery: string;
 }
 
 interface EnvironmentSummary {
@@ -77,9 +145,16 @@ interface EnvironmentSummary {
 }
 
 const WORKSPACE_SCHEMA_CACHE_TTL_MS = 120_000;
+const TABLE_COLUMNS_CACHE_TTL_MS = 5 * 60_000; // 5 minutes, matches server-side cache
+const QUERY_HISTORY_STORAGE_KEY = "pgLite_queryHistory";
+const MAX_QUERY_HISTORY_ITEMS = 100;
+const DEFAULT_TABLE_VIEW_PAGE_SIZE = 100;
 
 export default function Home() {
     const [result, setResult] = useState<QueryResult | null>(null);
+    const [explainResult, setExplainResult] = useState<ExplainResult | null>(
+        null,
+    );
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [executionTime, setExecutionTime] = useState<number | undefined>();
@@ -100,27 +175,20 @@ export default function Home() {
     const [tableColumns, setTableColumns] = useState<Record<string, Column[]>>(
         {},
     );
+    const [primaryKeysByTable, setPrimaryKeysByTable] = useState<
+        Record<string, string[]>
+    >({});
     const [loadingTables, setLoadingTables] = useState(false);
     const [workspaceSchemas, setWorkspaceSchemas] = useState<WorkspaceSchema[]>(
         [],
     );
-    const [editorHeight, setEditorHeight] = useState<number>(() => {
-        if (typeof window !== "undefined") {
-            const saved = localStorage.getItem("editorHeight");
-            return saved ? parseInt(saved, 10) : 280;
-        }
-        return 280;
-    });
-    const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
-        if (typeof window !== "undefined") {
-            return localStorage.getItem("sidebarCollapsed") === "true";
-        }
-        return false;
-    });
+    const [editorHeight, setEditorHeight] = useState<number>(280);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
     const [currentTable, setCurrentTable] = useState<{
         name: string;
         schema: string;
         database: string;
+        primaryKeys?: string[];
     } | null>(null);
     const [deleteConfirm, setDeleteConfirm] = useState<{
         row: Record<string, unknown>;
@@ -135,6 +203,26 @@ export default function Home() {
         Record<string, string>
     >({});
     const [defaultEnvironment, setDefaultEnvironment] = useState<string>("dev");
+    const [connected, setConnected] = useState(false);
+    const [dbLatency, setDbLatency] = useState<number | undefined>();
+    const [historyOpen, setHistoryOpen] = useState(false);
+    const [savedQueriesOpen, setSavedQueriesOpen] = useState(false);
+    const [contextOpen, setContextOpen] = useState(false);
+    const [contextModalOpen, setContextModalOpen] = useState(false);
+    const [queryHistory, setQueryHistory] = useState<QueryHistoryItem[]>([]);
+    const [savedQueries, setSavedQueries] = useState<SavedQuery[]>([]);
+    const [tableViewerState, setTableViewerState] =
+        useState<TableViewerState | null>(null);
+    const [saveQueryModalOpen, setSaveQueryModalOpen] = useState(false);
+    const [saveQueryModalSeed, setSaveQueryModalSeed] = useState(0);
+    // Context: shared, env-scoped variables (workspace mode). Definitions are
+    // shared (server file); the active-profile choice is per-user (localStorage).
+    const [contextProfiles, setContextProfiles] = useState<ContextProfile[]>(
+        [],
+    );
+    const [activeContextProfileId, setActiveContextProfileId] = useState<
+        string | null
+    >(null);
 
     // Use refs to track in-flight requests and cache
     const databasesCacheRef = useRef<Record<string, string[]>>({});
@@ -147,6 +235,14 @@ export default function Home() {
     >({});
     const workspaceSchemasInFlightRef = useRef<
         Partial<Record<string, Promise<WorkspaceSchema[]>>>
+    >({});
+    const tableColumnsCacheRef = useRef<
+        Partial<
+            Record<string, { data: StandardSchemaPayload; fetchedAt: number }>
+        >
+    >({});
+    const tableColumnsInFlightRef = useRef<
+        Partial<Record<string, Promise<StandardSchemaPayload>>>
     >({});
 
     useEffect(() => {
@@ -182,6 +278,298 @@ export default function Home() {
 
         fetchEnvironments();
     }, []);
+
+    // Load Context profiles (shared, env-scoped variables) + the per-user
+    // active-profile selection.
+    useEffect(() => {
+        const fetchContexts = async () => {
+            try {
+                const res = await fetch("/api/contexts", { cache: "no-store" });
+                const data = await res.json();
+                if (Array.isArray(data?.profiles)) {
+                    setContextProfiles(data.profiles);
+                }
+            } catch (err) {
+                console.error("Failed to fetch contexts:", err);
+            }
+        };
+
+        try {
+            const stored = localStorage.getItem(ACTIVE_CONTEXT_PROFILE_KEY);
+            if (stored) setActiveContextProfileId(stored);
+        } catch {
+            // localStorage unavailable — fall back to first profile at resolve time.
+        }
+
+        fetchContexts();
+    }, []);
+
+    // Build the variables payload for a workspace run: merge the active
+    // Context profile's values for the env with locally-declared @vars (local
+    // wins), then keep only the variables the SQL actually references.
+    const buildWorkspaceVariables = useCallback(
+        (
+            sql: string,
+            localVariables: Record<string, string>,
+            environment: string,
+        ): Record<string, string> => {
+            const profile = findActiveProfile(
+                contextProfiles,
+                activeContextProfileId,
+            );
+            const effective = resolveVariables({
+                profile,
+                local: localVariables,
+                environment,
+            });
+            const { picked, missing } = pickReferencedVariables(sql, effective);
+            if (missing.length > 0) {
+                throw new Error(
+                    `SQL references undefined variables: ${missing
+                        .map((name) => `@${name}`)
+                        .join(", ")}`,
+                );
+            }
+            if (Object.keys(picked).length > 0) {
+                validateVariableValues(picked);
+            }
+            return picked;
+        },
+        [contextProfiles, activeContextProfileId],
+    );
+
+    const handleSetActiveContextProfile = useCallback((id: string) => {
+        setActiveContextProfileId(id);
+        try {
+            localStorage.setItem(ACTIVE_CONTEXT_PROFILE_KEY, id);
+        } catch {
+            // localStorage unavailable — selection stays in-memory for the session.
+        }
+    }, []);
+
+    const handleSaveContexts = useCallback(
+        async (profiles: ContextProfile[]) => {
+            const res = await fetch("/api/contexts", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ version: 1, profiles }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data?.error || "Failed to save context.");
+            }
+            setContextProfiles(
+                Array.isArray(data?.profiles) ? data.profiles : [],
+            );
+        },
+        [],
+    );
+
+    // Context variable names resolvable for the active tab's environment —
+    // surfaced in the editor's autocomplete.
+    const editorContextVariables = useMemo(() => {
+        // Context variables only apply in workspace mode.
+        if (activeTab?.mode !== "workspace") return [];
+        const profile = findActiveProfile(
+            contextProfiles,
+            activeContextProfileId,
+        );
+        const env = activeTab?.environment;
+        if (!profile || !env) return [];
+        return Object.keys(profile.environments?.[env] ?? {});
+    }, [
+        contextProfiles,
+        activeContextProfileId,
+        activeTab?.environment,
+        activeTab?.mode,
+    ]);
+
+    useEffect(() => {
+        if (typeof window === "undefined") {
+            return;
+        }
+
+        try {
+            const stored = localStorage.getItem(QUERY_HISTORY_STORAGE_KEY);
+            if (!stored) {
+                return;
+            }
+
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed)) {
+                setQueryHistory(parsed);
+            }
+        } catch (err) {
+            console.error("Failed to load query history:", err);
+        }
+    }, []);
+
+    useEffect(() => {
+        setSavedQueries(readSavedQueries());
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === "undefined") {
+            return;
+        }
+
+        try {
+            localStorage.setItem(
+                QUERY_HISTORY_STORAGE_KEY,
+                JSON.stringify(queryHistory),
+            );
+        } catch (err) {
+            console.error("Failed to save query history:", err);
+        }
+    }, [queryHistory]);
+
+    useEffect(() => {
+        writeSavedQueries(savedQueries);
+    }, [savedQueries]);
+
+    const appendQueryHistory = useCallback((item: QueryHistoryItem) => {
+        setQueryHistory((prevHistory) =>
+            [item, ...prevHistory].slice(0, MAX_QUERY_HISTORY_ITEMS),
+        );
+    }, []);
+
+    const removeQueryHistoryItem = useCallback((id: string) => {
+        setQueryHistory((prevHistory) =>
+            prevHistory.filter((item) => item.id !== id),
+        );
+    }, []);
+
+    const clearQueryHistory = useCallback(() => {
+        setQueryHistory([]);
+    }, []);
+
+    const saveQuery = useCallback((input: SavedQueryInput) => {
+        const nextSavedQuery = createSavedQuery(input);
+        setSavedQueries((prevQueries) => [nextSavedQuery, ...prevQueries]);
+        setSavedQueriesOpen(true);
+        setHistoryOpen(false);
+        setSaveQueryModalOpen(false);
+    }, []);
+
+    const deleteSavedQuery = useCallback((id: string) => {
+        setSavedQueries((prevQueries) =>
+            prevQueries.filter((query) => query.id !== id),
+        );
+    }, []);
+
+    const handleToggleSavedQueryStar = useCallback((id: string) => {
+        setSavedQueries((prevQueries) => toggleSavedQueryStar(prevQueries, id));
+    }, []);
+
+    const handleSelectSavedQuery = useCallback((savedQuery: SavedQuery) => {
+        const currentTab = queryTabsRef.current?.getActiveTab();
+        if (!currentTab) {
+            return;
+        }
+
+        queryTabsRef.current?.updateQuery(savedQuery.query);
+
+        if (
+            savedQuery.environment &&
+            currentTab.environment !== savedQuery.environment
+        ) {
+            queryTabsRef.current?.updateTabEnvironment(
+                currentTab.id,
+                savedQuery.environment,
+            );
+        }
+
+        if (
+            savedQuery.database &&
+            currentTab.database !== savedQuery.database &&
+            savedQuery.mode !== "workspace"
+        ) {
+            queryTabsRef.current?.updateTabDatabase(
+                currentTab.id,
+                savedQuery.database,
+            );
+        }
+
+        setSavedQueriesOpen(false);
+    }, []);
+
+    const buildHistoryQuery = useCallback(
+        (query: string, variables?: Record<string, string>) => {
+            if (!variables || Object.keys(variables).length === 0) {
+                return query;
+            }
+
+            const variableBlock = Object.entries(variables)
+                .map(([name, value]) => `@${name} = ${value}`)
+                .join("\n");
+
+            return `${variableBlock}\n\n${query}`;
+        },
+        [],
+    );
+
+    const getPrimaryKeysForTable = useCallback(
+        (table: { database: string; schema: string; name: string }) => {
+            const standardKey = `${table.schema}.${table.name}`;
+            if (primaryKeysByTable[standardKey]) {
+                return primaryKeysByTable[standardKey];
+            }
+
+            const workspaceMatch = workspaceSchemas
+                .find((dbSchema) => dbSchema.database === table.database)
+                ?.schemas.find((schema) => schema.schema === table.schema)
+                ?.tables.find(
+                    (currentTable) => currentTable.name === table.name,
+                );
+
+            return workspaceMatch?.primaryKeys || [];
+        },
+        [primaryKeysByTable, workspaceSchemas],
+    );
+
+    const quoteIdentifier = useCallback((identifier: string) => {
+        return `"${identifier.replace(/"/g, '""')}"`;
+    }, []);
+
+    const formatSqlLiteral = useCallback((value: unknown) => {
+        if (value === null || typeof value === "undefined") {
+            return "NULL";
+        }
+
+        if (typeof value === "string") {
+            return `'${value.replace(/'/g, "''")}'`;
+        }
+
+        if (typeof value === "number") {
+            return Number.isFinite(value) ? String(value) : "NULL";
+        }
+
+        if (typeof value === "bigint") {
+            return value.toString();
+        }
+
+        if (typeof value === "boolean") {
+            return value ? "TRUE" : "FALSE";
+        }
+
+        if (value instanceof Date) {
+            return `'${value.toISOString().replace(/'/g, "''")}'`;
+        }
+
+        return `'${JSON.stringify(value).replace(/'/g, "''")}'`;
+    }, []);
+
+    const buildDeletePredicate = useCallback(
+        (columnName: string, value: unknown) => {
+            const identifier = quoteIdentifier(columnName);
+            if (value === null || typeof value === "undefined") {
+                return `${identifier} IS NULL`;
+            }
+
+            return `${identifier} = ${formatSqlLiteral(value)}`;
+        },
+        [formatSqlLiteral, quoteIdentifier],
+    );
 
     // Convert workspaceSchemas to tableColumns format for autocomplete
     const editorTableColumns = useMemo(() => {
@@ -256,6 +644,17 @@ export default function Home() {
     useEffect(() => {
         localStorage.setItem("sidebarCollapsed", sidebarCollapsed.toString());
     }, [sidebarCollapsed]);
+
+    // Restore persisted layout prefs after mount (avoids SSR hydration mismatch)
+    useEffect(() => {
+        const savedHeight = localStorage.getItem("editorHeight");
+        if (savedHeight) {
+            const h = parseInt(savedHeight, 10);
+            if (!isNaN(h) && h > 0) setEditorHeight(h);
+        }
+        const savedCollapsed = localStorage.getItem("sidebarCollapsed");
+        if (savedCollapsed === "true") setSidebarCollapsed(true);
+    }, []);
 
     useEffect(() => {
         const handleToggleSidebarShortcut = (e: KeyboardEvent) => {
@@ -350,25 +749,77 @@ export default function Home() {
             // Standard mode: fetch single database schema
             if (!activeTab.database) return;
 
+            const cacheKey = `${activeTab.environment}:${activeTab.database}`;
+
+            if (!forceRefresh) {
+                const cached = tableColumnsCacheRef.current[cacheKey];
+                if (
+                    cached &&
+                    Date.now() - cached.fetchedAt < TABLE_COLUMNS_CACHE_TTL_MS
+                ) {
+                    setTableColumns(cached.data.tableColumns);
+                    setPrimaryKeysByTable(cached.data.primaryKeysByTable);
+                    return;
+                }
+
+                if (tableColumnsInFlightRef.current[cacheKey]) {
+                    setLoadingTables(true);
+                    try {
+                        const data =
+                            await tableColumnsInFlightRef.current[cacheKey];
+                        setTableColumns(data.tableColumns);
+                        setPrimaryKeysByTable(data.primaryKeysByTable);
+                    } catch (err) {
+                        console.error("Failed to fetch tables/columns:", err);
+                    } finally {
+                        setLoadingTables(false);
+                    }
+                    return;
+                }
+            }
+
             setLoadingTables(true);
             try {
-                const columnsRes = await fetch("/api/columns", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        database: activeTab.database,
-                        environment: activeTab.environment,
-                    }),
-                });
+                const requestPromise = (async () => {
+                    const columnsRes = await fetch("/api/columns", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            database: activeTab.database,
+                            environment: activeTab.environment,
+                            forceRefresh,
+                        }),
+                    });
+                    const columnsData = await columnsRes.json();
+                    if (columnsData.error) {
+                        throw new Error(columnsData.error);
+                    }
+                    const data = {
+                        tableColumns: columnsData.tableColumns as Record<
+                            string,
+                            Column[]
+                        >,
+                        primaryKeysByTable:
+                            (columnsData.primaryKeysByTable as Record<
+                                string,
+                                string[]
+                            >) || {},
+                    };
+                    tableColumnsCacheRef.current[cacheKey] = {
+                        data,
+                        fetchedAt: Date.now(),
+                    };
+                    return data;
+                })();
 
-                const columnsData = await columnsRes.json();
-
-                if (!columnsData.error) {
-                    setTableColumns(columnsData.tableColumns);
-                }
+                tableColumnsInFlightRef.current[cacheKey] = requestPromise;
+                const data = await requestPromise;
+                setTableColumns(data.tableColumns);
+                setPrimaryKeysByTable(data.primaryKeysByTable);
             } catch (err) {
                 console.error("Failed to fetch tables/columns:", err);
             } finally {
+                delete tableColumnsInFlightRef.current[cacheKey];
                 setLoadingTables(false);
             }
         },
@@ -504,6 +955,7 @@ export default function Home() {
         (
             query: string,
             database: string,
+            mode: "standard" | "workspace",
         ): { name: string; schema: string; database: string } | null => {
             const trimmedQuery = query.trim().toUpperCase();
             if (!trimmedQuery.startsWith("SELECT")) return null;
@@ -520,6 +972,15 @@ export default function Home() {
                 // FROM table_name -> use public schema
                 return { name: parts[0], schema: "public", database };
             } else if (parts.length === 2) {
+                if (mode === "workspace") {
+                    // FROM database.table_name in workspace mode
+                    return {
+                        name: parts[1],
+                        schema: "public",
+                        database: parts[0],
+                    };
+                }
+
                 // FROM schema.table_name
                 return { name: parts[1], schema: parts[0], database };
             } else if (parts.length === 3) {
@@ -540,13 +1001,16 @@ export default function Home() {
             readOnly: boolean,
             mode: "standard" | "workspace" = "standard",
             variables?: Record<string, string>,
+            explain = false,
         ) => {
             if (!query.trim()) return;
 
             setLoading(true);
             setResult(null);
+            setExplainResult(null);
             setError(null);
             setExecutionTime(undefined);
+            setTableViewerState(null);
 
             const startTime = performance.now();
 
@@ -564,34 +1028,66 @@ export default function Home() {
                               sql: query,
                               variables: variables || {},
                               environment,
+                              explain,
+                              timeoutMs: WORKSPACE_QUERY_TIMEOUT_MS,
                           }
-                        : { query, database, environment, readOnly };
+                        : {
+                              query,
+                              database,
+                              environment,
+                              readOnly,
+                              explain,
+                          };
 
                 const res = await fetch(endpoint, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(requestBody),
                 });
-                const data: QueryResult | QueryError = await res.json();
+                const data: QueryResult | QueryError | ExplainResult =
+                    await res.json();
 
                 const endTime = performance.now();
                 const execTime = Math.round(endTime - startTime);
                 setExecutionTime(execTime);
 
+                appendQueryHistory({
+                    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                    query: buildHistoryQuery(query, variables),
+                    database: isQueryError(data)
+                        ? database || "workspace"
+                        : data.routedDatabase || database || "workspace",
+                    environment,
+                    timestamp: Date.now(),
+                    executionTime: execTime,
+                    rowCount: "rowCount" in data ? data.rowCount : undefined,
+                    success: !isQueryError(data),
+                    error: isQueryError(data) ? data.error : undefined,
+                });
+
                 // Use startTransition for non-urgent UI updates (large datasets)
                 startTransition(() => {
-                    if ("error" in data) {
+                    if (isQueryError(data)) {
                         setError(data.error);
+                    } else if (isExplainResult(data)) {
+                        setResult(null);
+                        setExplainResult(data);
+                        setCurrentTable(null);
                     } else {
+                        setExplainResult(null);
                         setResult(data);
 
                         // Extract table info from SELECT queries to enable delete functionality
                         const tableInfo = extractTableFromQuery(
                             query,
                             database,
+                            mode,
                         );
                         if (tableInfo) {
-                            setCurrentTable(tableInfo);
+                            setCurrentTable({
+                                ...tableInfo,
+                                primaryKeys: getPrimaryKeysForTable(tableInfo),
+                            });
                         }
                     }
                     setLoading(false);
@@ -601,7 +1097,12 @@ export default function Home() {
                 setLoading(false);
             }
         },
-        [extractTableFromQuery],
+        [
+            appendQueryHistory,
+            buildHistoryQuery,
+            extractTableFromQuery,
+            getPrimaryKeysForTable,
+        ],
     );
 
     const runQuery = useCallback(
@@ -612,6 +1113,7 @@ export default function Home() {
             readOnly: boolean,
             mode: "standard" | "workspace" = "standard",
             variables?: Record<string, string>,
+            explain = false,
         ) => {
             if (!query.trim()) return;
 
@@ -624,6 +1126,7 @@ export default function Home() {
                     readOnly,
                     "workspace",
                     variables,
+                    explain,
                 );
                 return;
             }
@@ -652,84 +1155,264 @@ export default function Home() {
                 database,
                 readOnly,
                 "standard",
+                undefined,
+                explain,
             );
         },
         [isWriteQuery, isProdEnvironment, executeQuery],
     );
+
+    const loadTablePreview = useCallback(
+        async (
+            table: Table,
+            environment: string,
+            overrides?: Partial<
+                Pick<
+                    TableViewerState,
+                    | "page"
+                    | "pageSize"
+                    | "sortColumn"
+                    | "sortDirection"
+                    | "searchQuery"
+                >
+            >,
+        ) => {
+            const targetDatabase = table.database || activeTab?.database;
+            if (!targetDatabase) {
+                return;
+            }
+
+            const isSameTable =
+                currentTable?.database === targetDatabase &&
+                currentTable?.schema === table.schema &&
+                currentTable?.name === table.name;
+
+            const baseState =
+                isSameTable && tableViewerState
+                    ? tableViewerState
+                    : {
+                          page: 1,
+                          pageSize: DEFAULT_TABLE_VIEW_PAGE_SIZE,
+                          totalRows: 0,
+                          totalPages: 1,
+                          sortColumn: null,
+                          sortDirection: "asc" as const,
+                          searchQuery: "",
+                      };
+
+            const nextRequest = {
+                page: overrides?.page ?? baseState.page,
+                pageSize: overrides?.pageSize ?? baseState.pageSize,
+                sortColumn:
+                    typeof overrides?.sortColumn === "undefined"
+                        ? baseState.sortColumn
+                        : overrides.sortColumn,
+                sortDirection:
+                    overrides?.sortDirection ?? baseState.sortDirection,
+                searchQuery:
+                    typeof overrides?.searchQuery === "undefined"
+                        ? baseState.searchQuery
+                        : overrides.searchQuery,
+            };
+
+            const previewTable = {
+                name: table.name,
+                schema: table.schema,
+                database: targetDatabase,
+                primaryKeys:
+                    table.primaryKeys ||
+                    getPrimaryKeysForTable({
+                        database: targetDatabase,
+                        schema: table.schema,
+                        name: table.name,
+                    }),
+            };
+
+            setLoading(true);
+            setError(null);
+            setExplainResult(null);
+            setExecutionTime(undefined);
+            setCurrentTable(previewTable);
+
+            try {
+                const res = await fetch("/api/table-data", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        environment,
+                        database: targetDatabase,
+                        schema: table.schema,
+                        table: table.name,
+                        page: nextRequest.page,
+                        pageSize: nextRequest.pageSize,
+                        sortColumn: nextRequest.sortColumn,
+                        sortDirection: nextRequest.sortDirection,
+                        searchQuery: nextRequest.searchQuery,
+                    }),
+                });
+
+                const data = await res.json();
+                if (!res.ok || data.error) {
+                    throw new Error(
+                        data.error || "Failed to load table preview.",
+                    );
+                }
+
+                if (
+                    data.totalRows > 0 &&
+                    nextRequest.page > data.totalPages &&
+                    data.totalPages > 0
+                ) {
+                    await loadTablePreview(table, environment, {
+                        ...nextRequest,
+                        page: data.totalPages,
+                    });
+                    return;
+                }
+
+                setResult({
+                    rows: data.rows,
+                    rowCount: data.rowCount,
+                    fields: data.fields,
+                });
+                setTableViewerState({
+                    page: data.page,
+                    pageSize: data.pageSize,
+                    totalRows: data.totalRows,
+                    totalPages: data.totalPages,
+                    sortColumn: data.sortColumn,
+                    sortDirection: data.sortDirection,
+                    searchQuery: data.searchQuery,
+                });
+            } catch (previewError) {
+                setResult(null);
+                setTableViewerState(null);
+                setError(
+                    previewError instanceof Error
+                        ? previewError.message
+                        : "Failed to load table preview.",
+                );
+            } finally {
+                setLoading(false);
+            }
+        },
+        [
+            activeTab?.database,
+            currentTable,
+            getPrimaryKeysForTable,
+            tableViewerState,
+        ],
+    );
+
+    const handleTableViewChange = useCallback(
+        async (
+            updates: Partial<
+                Pick<
+                    TableViewerState,
+                    | "page"
+                    | "pageSize"
+                    | "sortColumn"
+                    | "sortDirection"
+                    | "searchQuery"
+                >
+            >,
+        ) => {
+            if (!currentTable || !activeTab) {
+                return;
+            }
+
+            await loadTablePreview(
+                currentTable,
+                activeTab.environment,
+                updates,
+            );
+        },
+        [activeTab, currentTable, loadTablePreview],
+    );
+
+    const refreshTablePreview = useCallback(async () => {
+        if (!currentTable || !activeTab || !tableViewerState) {
+            return;
+        }
+
+        await loadTablePreview(currentTable, activeTab.environment, {
+            page: tableViewerState.page,
+            pageSize: tableViewerState.pageSize,
+            sortColumn: tableViewerState.sortColumn,
+            sortDirection: tableViewerState.sortDirection,
+            searchQuery: tableViewerState.searchQuery,
+        });
+    }, [activeTab, currentTable, loadTablePreview, tableViewerState]);
 
     const handleTablePreview = useCallback(
         (table: Table) => {
             const currentTab = queryTabsRef.current?.getActiveTab();
             if (!currentTab) return;
 
-            const fullTableName =
-                table.schema === "public"
-                    ? table.name
-                    : `${table.schema}.${table.name}`;
-
             const targetDatabase = table.database || currentTab.database;
-            const mode = table.database ? "workspace" : "standard";
             if (!targetDatabase) return;
-
-            // Track current table for delete functionality
-            setCurrentTable({
-                name: table.name,
-                schema: table.schema,
-                database: targetDatabase,
-            });
 
             // Enable write mode for table preview (to allow delete)
             if (currentTab.readOnly) {
                 queryTabsRef.current?.toggleTabReadOnly?.(currentTab.id);
             }
 
-            runQuery(
-                `SELECT * FROM ${fullTableName} LIMIT 100;`,
+            void loadTablePreview(
+                {
+                    name: table.name,
+                    schema: table.schema,
+                    database: targetDatabase,
+                    primaryKeys: table.primaryKeys,
+                },
                 currentTab.environment,
-                targetDatabase,
-                false, // table preview is always in write mode
-                mode,
+                {
+                    page: 1,
+                    pageSize: DEFAULT_TABLE_VIEW_PAGE_SIZE,
+                    sortColumn: null,
+                    sortDirection: "asc",
+                    searchQuery: "",
+                },
             );
         },
-        [runQuery],
+        [loadTablePreview],
     );
 
     // Handle delete row
     const handleDeleteRow = useCallback(
         async (row: Record<string, unknown>) => {
-            console.log("Delete clicked, currentTable:", currentTable);
-            console.log("Row data:", row);
             if (!currentTable) {
-                console.error("No currentTable set!");
                 return;
             }
 
-            // Build WHERE clause using all columns to uniquely identify the row
-            const whereClauses = Object.entries(row)
-                .map(([key, value]) => {
-                    if (value === null) {
-                        return `${key} IS NULL`;
-                    }
-                    if (typeof value === "string") {
-                        return `${key} = '${value.replace(/'/g, "''")}'`; // Escape single quotes
-                    }
-                    return `${key} = ${value}`;
-                })
+            const primaryKeys = currentTable.primaryKeys || [];
+            const canUsePrimaryKeys =
+                primaryKeys.length > 0 &&
+                primaryKeys.every(
+                    (columnName) =>
+                        Object.prototype.hasOwnProperty.call(row, columnName) &&
+                        row[columnName] != null,
+                );
+
+            const predicateColumns = canUsePrimaryKeys
+                ? primaryKeys
+                : Object.keys(row);
+            const whereClauses = predicateColumns
+                .map((columnName) =>
+                    buildDeletePredicate(columnName, row[columnName]),
+                )
                 .join(" AND ");
 
             const fullTableName =
                 currentTable.schema === "public"
-                    ? currentTable.name
-                    : `${currentTable.schema}.${currentTable.name}`;
+                    ? quoteIdentifier(currentTable.name)
+                    : `${quoteIdentifier(currentTable.schema)}.${quoteIdentifier(currentTable.name)}`;
 
             const deleteQuery = `DELETE FROM ${fullTableName} WHERE ${whereClauses};`;
-
-            console.log("Delete query:", deleteQuery);
 
             // Show confirmation dialog
             setDeleteConfirm({ row, query: deleteQuery });
         },
-        [currentTable],
+        [buildDeletePredicate, currentTable, quoteIdentifier],
     );
 
     // Execute delete after confirmation
@@ -750,24 +1433,89 @@ export default function Home() {
                 : "standard",
         );
 
-        // Refresh table data after delete
-        const fullTableName =
-            currentTable.schema === "public"
-                ? currentTable.name
-                : `${currentTable.schema}.${currentTable.name}`;
+        if (tableViewerState) {
+            await loadTablePreview(currentTable, currentTab.environment, {
+                page: tableViewerState.page,
+                pageSize: tableViewerState.pageSize,
+                sortColumn: tableViewerState.sortColumn,
+                sortDirection: tableViewerState.sortDirection,
+                searchQuery: tableViewerState.searchQuery,
+            });
+        } else {
+            const fullTableName =
+                currentTable.schema === "public"
+                    ? currentTable.name
+                    : `${currentTable.schema}.${currentTable.name}`;
 
-        runQuery(
-            `SELECT * FROM ${fullTableName} LIMIT 100;`,
-            currentTab.environment,
-            currentTable.database,
-            false,
-            currentTable.database !== currentTab.database
-                ? "workspace"
-                : "standard",
-        );
+            runQuery(
+                `SELECT * FROM ${fullTableName} LIMIT 100;`,
+                currentTab.environment,
+                currentTable.database,
+                false,
+                currentTable.database !== currentTab.database
+                    ? "workspace"
+                    : "standard",
+            );
+        }
 
         setDeleteConfirm(null);
-    }, [deleteConfirm, currentTable, runQuery]);
+    }, [
+        deleteConfirm,
+        currentTable,
+        loadTablePreview,
+        runQuery,
+        tableViewerState,
+    ]);
+
+    const runCurrentTab = useCallback(
+        async (explain = false) => {
+            const currentTab = queryTabsRef.current?.getActiveTab();
+            if (!currentTab) {
+                return;
+            }
+
+            if (currentTab.mode === "workspace") {
+                try {
+                    const { variables: localVariables, sqlWithoutVars } =
+                        extractVariables(currentTab.query);
+
+                    const variables = buildWorkspaceVariables(
+                        sqlWithoutVars,
+                        localVariables,
+                        currentTab.environment,
+                    );
+
+                    await runQuery(
+                        sqlWithoutVars,
+                        currentTab.environment,
+                        currentTab.database,
+                        currentTab.readOnly,
+                        "workspace",
+                        variables,
+                        explain,
+                    );
+                } catch (currentError) {
+                    setError(
+                        currentError instanceof Error
+                            ? currentError.message
+                            : "Variable validation failed",
+                    );
+                }
+                return;
+            }
+
+            await runQuery(
+                currentTab.query,
+                currentTab.environment,
+                currentTab.database,
+                currentTab.readOnly,
+                currentTab.mode || "standard",
+                undefined,
+                explain,
+            );
+        },
+        [runQuery, buildWorkspaceVariables],
+    );
 
     // Fetch databases for a specific environment
     const fetchDatabasesForEnvironment = useCallback(
@@ -817,6 +1565,23 @@ export default function Home() {
         [],
     );
 
+    const checkConnection = useCallback(async (environment: string) => {
+        setConnected(false);
+        setDbLatency(undefined);
+        try {
+            const res = await fetch(
+                `/api/ping?environment=${encodeURIComponent(environment)}`,
+            );
+            const data = await res.json();
+            setConnected(data.ok === true);
+            if (data.ok && typeof data.latencyMs === "number") {
+                setDbLatency(data.latencyMs);
+            }
+        } catch {
+            setConnected(false);
+        }
+    }, []);
+
     // When active tab changes, fetch databases for its environment
     const handleTabChange = useCallback(
         async (tab: QueryTab) => {
@@ -834,14 +1599,21 @@ export default function Home() {
             });
             // Clear previous query results when switching tabs/environments/databases
             setResult(null);
+            setExplainResult(null);
             setError(null);
             setExecutionTime(undefined);
             setLoading(false);
+            setCurrentTable(null);
+            setTableViewerState(null);
+            setDeleteConfirm(null);
 
             // Fetch databases for this tab's environment if not already cached
             await fetchDatabasesForEnvironment(tab.environment);
+
+            // Check DB connectivity for the new environment
+            checkConnection(tab.environment);
         },
-        [fetchDatabasesForEnvironment],
+        [fetchDatabasesForEnvironment, checkConnection],
     );
 
     return (
@@ -855,7 +1627,25 @@ export default function Home() {
             {/* Activity Bar - 40px left strip */}
             <ActivityBar
                 sidebarCollapsed={sidebarCollapsed}
+                historyOpen={historyOpen}
+                savedQueriesOpen={savedQueriesOpen}
+                contextOpen={contextOpen}
                 onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
+                onToggleHistory={() => {
+                    setHistoryOpen((prev) => !prev);
+                    setSavedQueriesOpen(false);
+                    setContextOpen(false);
+                }}
+                onToggleSavedQueries={() => {
+                    setSavedQueriesOpen((prev) => !prev);
+                    setHistoryOpen(false);
+                    setContextOpen(false);
+                }}
+                onToggleContext={() => {
+                    setContextOpen((prev) => !prev);
+                    setHistoryOpen(false);
+                    setSavedQueriesOpen(false);
+                }}
             />
 
             {/* Main Layout */}
@@ -897,6 +1687,7 @@ export default function Home() {
                             <DatabaseTree
                                 selectedDatabase={activeTab?.database || ""}
                                 tableColumns={tableColumns}
+                                primaryKeysByTable={primaryKeysByTable}
                                 onTablePreview={handleTablePreview}
                                 templates={templates}
                                 templatesLoading={loadingTemplates}
@@ -974,9 +1765,10 @@ export default function Home() {
                                                     "workspace"
                                                 ) {
                                                     try {
-                                                        // Extract variables from full editor content
+                                                        // Extract locally-declared variables from full editor content
                                                         const {
-                                                            variables,
+                                                            variables:
+                                                                localVariables,
                                                             variableBlockEndLine,
                                                         } = extractVariables(
                                                             currentTab.query,
@@ -1006,20 +1798,13 @@ export default function Home() {
                                                             );
                                                         }
 
-                                                        // Validate variable values if any exist
-                                                        if (
-                                                            Object.keys(
-                                                                variables,
-                                                            ).length > 0
-                                                        ) {
-                                                            validateVariableValues(
-                                                                variables,
-                                                            );
-                                                            validateVariableReferences(
+                                                        // Merge Context + local vars, keep only referenced ones
+                                                        const variables =
+                                                            buildWorkspaceVariables(
                                                                 sqlToExecute,
-                                                                variables,
+                                                                localVariables,
+                                                                currentTab.environment,
                                                             );
-                                                        }
 
                                                         // Execute with structured payload
                                                         runQuery(
@@ -1058,157 +1843,92 @@ export default function Home() {
                                                 activeTab.environment
                                             ] || []
                                         }
+                                        contextVariables={
+                                            editorContextVariables
+                                        }
                                     />
                                 )}
                             </div>
 
                             {/* Run Button Strip */}
                             <div
-                                className="h-[32px] flex items-center justify-between px-3 text-[12px] border-t"
+                                className="h-[34px] flex items-center justify-between px-3 border-t flex-shrink-0"
                                 style={{
                                     background: "var(--panel)",
                                     borderColor: "var(--border)",
+                                    gap: "8px",
                                 }}
                             >
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2">
                                     {activeTab?.mode === "workspace" && (
                                         <button
                                             onClick={handleSaveTemplate}
-                                            className="px-2 py-0.5 hover:opacity-80 transition-opacity  rounded text-[10px]"
-                                            style={{
-                                                color: "var(--accent)",
-                                                // borderColor: "var(--accent)",
-                                                padding: "4px",
-                                                fontSize: "12px",
-                                            }}
+                                            className="cyber-btn cyber-btn-accent"
                                             title="Save or overwrite template"
                                         >
-                                            [ Save template ]
+                                            save template
                                         </button>
                                     )}
+
+                                    <button
+                                        onClick={() => {
+                                            setSaveQueryModalSeed(
+                                                (prevSeed) => prevSeed + 1,
+                                            );
+                                            setSaveQueryModalOpen(true);
+                                        }}
+                                        disabled={!activeTab?.query.trim()}
+                                        className="cyber-btn cyber-btn-warn"
+                                        title="Save current query"
+                                    >
+                                        save query
+                                    </button>
                                 </div>
 
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2">
                                     <button
-                                        onClick={() =>
-                                            fetchTablesAndColumns(true)
-                                        }
+                                        onClick={() => fetchTablesAndColumns(true)}
                                         disabled={loadingTables}
-                                        className="px-2 py-1 hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed rounded text-[10px] w-full flex justify-center items-center mt-auto"
-                                        style={{
-                                            color: "var(--text-muted)",
-                                        }}
+                                        className="cyber-btn"
                                         title="Refresh autocomplete/intellisense data"
                                     >
                                         {loadingTables ? (
                                             <span className="flex items-center gap-1">
-                                                [
                                                 <RefreshIcon className="w-3 h-3 animate-spin" />
-                                                <span className="uppercase tracking-tighter">
-                                                    Refreshing
-                                                </span>
-                                                <span className="flex gap-0.5 ml-1">
-                                                    <span className="w-0.5 h-0.5 bg-current animate-pulse [animation-delay:-0.3s]"></span>
-                                                    <span className="w-0.5 h-0.5 bg-current animate-pulse [animation-delay:-0.15s]"></span>
-                                                    <span className="w-0.5 h-0.5 bg-current animate-pulse"></span>
-                                                </span>
-                                                ]
+                                                refreshing
                                             </span>
                                         ) : (
-                                            <div className="flex items-center gap-1 opacity-70">
-                                                [
-                                                <span className="flex items-center gap-1  tracking-tighter">
-                                                    <RefreshIcon className="w-3 h-3" />
-                                                    Intellisense
-                                                </span>
-                                                ]
-                                            </div>
+                                            <span className="flex items-center gap-1">
+                                                <RefreshIcon className="w-3 h-3" />
+                                                intellisense
+                                            </span>
                                         )}
                                     </button>
 
                                     <button
-                                        onClick={() => {
-                                            const currentTab =
-                                                queryTabsRef.current?.getActiveTab();
-                                            if (currentTab) {
-                                                // Workspace mode: extract variables
-                                                if (
-                                                    currentTab.mode ===
-                                                    "workspace"
-                                                ) {
-                                                    try {
-                                                        const {
-                                                            variables,
-                                                            sqlWithoutVars,
-                                                        } = extractVariables(
-                                                            currentTab.query,
-                                                        );
-
-                                                        if (
-                                                            Object.keys(
-                                                                variables,
-                                                            ).length > 0
-                                                        ) {
-                                                            validateVariableValues(
-                                                                variables,
-                                                            );
-                                                            validateVariableReferences(
-                                                                sqlWithoutVars,
-                                                                variables,
-                                                            );
-                                                        }
-
-                                                        runQuery(
-                                                            sqlWithoutVars,
-                                                            currentTab.environment,
-                                                            currentTab.database,
-                                                            currentTab.readOnly,
-                                                            "workspace",
-                                                            variables,
-                                                        );
-                                                    } catch (error) {
-                                                        setError(
-                                                            error instanceof
-                                                                Error
-                                                                ? error.message
-                                                                : "Variable validation failed",
-                                                        );
-                                                    }
-                                                } else {
-                                                    // Standard mode: run full query
-                                                    runQuery(
-                                                        currentTab.query,
-                                                        currentTab.environment,
-                                                        currentTab.database,
-                                                        currentTab.readOnly,
-                                                        currentTab.mode ||
-                                                            "standard",
-                                                    );
-                                                }
-                                            }
-                                        }}
-                                        disabled={
-                                            loading || !activeTab?.query.trim()
-                                        }
-                                        className="hover:opacity-80 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
-                                        style={{
-                                            color: loading
-                                                ? "var(--text-muted)"
-                                                : "var(--accent)",
-                                            whiteSpace: "nowrap",
-                                        }}
+                                        onClick={() => { void runCurrentTab(false); }}
+                                        disabled={loading || !activeTab?.query.trim()}
+                                        className="cyber-btn cyber-btn-accent"
+                                        style={{ minWidth: "80px", justifyContent: "center" }}
                                     >
                                         {loading ? (
-                                            <span className="flex items-center gap-2">
+                                            <span className="flex items-center gap-1.5">
                                                 <span className="inline-block w-2 h-2 border border-current border-t-transparent animate-spin" />
-                                                Executing
                                                 {executionTime !== undefined
-                                                    ? `... ${(executionTime / 1000).toFixed(2)}s`
-                                                    : "..."}
+                                                    ? `${(executionTime / 1000).toFixed(1)}s`
+                                                    : "running"}
                                             </span>
                                         ) : (
-                                            "[ Run ⌘↵ ]"
+                                            "run ⌘↵"
                                         )}
+                                    </button>
+                                    <button
+                                        onClick={() => { void runCurrentTab(true); }}
+                                        disabled={loading || !activeTab?.query.trim()}
+                                        className="cyber-btn cyber-btn-warn"
+                                        title="Run EXPLAIN ANALYZE"
+                                    >
+                                        explain
                                     </button>
                                 </div>
                             </div>
@@ -1227,7 +1947,8 @@ export default function Home() {
 
                         {/* Results */}
                         <div className="flex-1 flex flex-col min-h-0">
-                            {result?.routedDatabase && (
+                            {(result?.routedDatabase ||
+                                explainResult?.routedDatabase) && (
                                 <div
                                     className="px-3 py-2 text-[11px] font-medium uppercase tracking-wide border-b flex items-center gap-2"
                                     style={{
@@ -1239,7 +1960,8 @@ export default function Home() {
                                     <span>🎯</span>
                                     <span>AUTO-ROUTED TO:</span>
                                     <span style={{ fontWeight: 600 }}>
-                                        {result.routedDatabase}
+                                        {result?.routedDatabase ||
+                                            explainResult?.routedDatabase}
                                     </span>
                                 </div>
                             )}
@@ -1252,29 +1974,103 @@ export default function Home() {
                                         color: "var(--warning)",
                                     }}
                                 >
-                                    ⚠ RESULTS TRUNCATED AT{" "}
-                                    {result.rowCount.toLocaleString()} ROWS
+                                    ⚠ RESULTS TRUNCATED — SHOWING FIRST{" "}
+                                    {result.rowCount.toLocaleString()}
+                                    {result.totalRows
+                                        ? ` OF ${result.totalRows.toLocaleString()}`
+                                        : ""}{" "}
+                                    ROWS · ADD A LIMIT CLAUSE TO REFINE
                                 </div>
                             )}
                             <div className="flex-1 min-h-0">
-                                <ResultsTable
-                                    result={result}
-                                    error={error}
-                                    loading={loading}
-                                    readOnly={activeTab?.readOnly ?? true}
-                                    tableName={
-                                        currentTable
-                                            ? currentTable.schema === "public"
-                                                ? currentTable.name
-                                                : `${currentTable.schema}.${currentTable.name}`
-                                            : undefined
-                                    }
-                                    onDeleteRow={handleDeleteRow}
-                                />
+                                {explainResult ? (
+                                    <ExplainView
+                                        plan={explainResult.explain}
+                                        executionTime={
+                                            explainResult.executionTime
+                                        }
+                                    />
+                                ) : (
+                                    <ResultsTable
+                                        result={result}
+                                        error={error}
+                                        loading={loading}
+                                        readOnly={activeTab?.readOnly ?? true}
+                                        tableName={
+                                            currentTable
+                                                ? currentTable.schema ===
+                                                  "public"
+                                                    ? currentTable.name
+                                                    : `${currentTable.schema}.${currentTable.name}`
+                                                : undefined
+                                        }
+                                        tableView={tableViewerState}
+                                        onTableViewChange={
+                                            handleTableViewChange
+                                        }
+                                        onRefreshTableView={refreshTablePreview}
+                                        onDeleteRow={handleDeleteRow}
+                                    />
+                                )}
                             </div>
                         </div>
                     </main>
+
+                    <QueryHistory
+                        items={queryHistory}
+                        isOpen={historyOpen}
+                        onToggle={() => {
+                            setHistoryOpen((prev) => !prev);
+                            setSavedQueriesOpen(false);
+                        }}
+                        onSelectQuery={(query) => {
+                            queryTabsRef.current?.updateQuery(query);
+                            setHistoryOpen(false);
+                        }}
+                        onDeleteItem={removeQueryHistoryItem}
+                        onClear={clearQueryHistory}
+                    />
+
+                    <SavedQueries
+                        items={savedQueries}
+                        isOpen={savedQueriesOpen}
+                        onToggle={() => {
+                            setSavedQueriesOpen((prev) => !prev);
+                            setHistoryOpen(false);
+                        }}
+                        onSelectQuery={handleSelectSavedQuery}
+                        onDeleteItem={deleteSavedQuery}
+                        onToggleStar={handleToggleSavedQueryStar}
+                    />
+
+                    <ContextPanel
+                        isOpen={contextOpen}
+                        onToggle={() => {
+                            setContextOpen((prev) => !prev);
+                            setHistoryOpen(false);
+                            setSavedQueriesOpen(false);
+                        }}
+                        profiles={contextProfiles}
+                        activeProfileId={activeContextProfileId}
+                        environmentIds={availableEnvironmentIds}
+                        environmentNamesById={environmentNamesById}
+                        onSetActiveProfile={handleSetActiveContextProfile}
+                        onSave={handleSaveContexts}
+                    />
                 </div>
+
+                <ContextModal
+                    isOpen={contextModalOpen}
+                    onToggle={() => setContextModalOpen((prev) => !prev)}
+                    onClose={() => setContextModalOpen(false)}
+                    profiles={contextProfiles}
+                    activeProfileId={activeContextProfileId}
+                    environmentIds={availableEnvironmentIds}
+                    environmentNamesById={environmentNamesById}
+                    onSetActiveProfile={handleSetActiveContextProfile}
+                    onSave={handleSaveContexts}
+                    currentEnvironment={activeTab?.environment}
+                />
 
                 {/* Status Bar */}
                 <StatusBar
@@ -1283,12 +2079,32 @@ export default function Home() {
                     readOnly={activeTab?.readOnly || false}
                     rowCount={result?.rowCount}
                     executionTime={executionTime}
-                    connected={true}
+                    latency={dbLatency}
+                    connected={connected}
+                    contextProfileName={
+                        findActiveProfile(
+                            contextProfiles,
+                            activeContextProfileId,
+                        )?.name
+                    }
+                    onOpenContext={() => setContextModalOpen(true)}
                 />
             </div>
 
             {/* Keyboard Help */}
             <KeyboardHelp />
+
+            <SaveQueryModal
+                key={saveQueryModalSeed}
+                isOpen={saveQueryModalOpen}
+                initialName={activeTab?.name || "Saved Query"}
+                query={activeTab?.query || ""}
+                environment={activeTab?.environment || defaultEnvironment}
+                database={activeTab?.database || ""}
+                mode={activeTab?.mode || "standard"}
+                onSave={saveQuery}
+                onCancel={() => setSaveQueryModalOpen(false)}
+            />
 
             {/* Production Write Warning */}
             {showProdWarning && pendingQuery && (

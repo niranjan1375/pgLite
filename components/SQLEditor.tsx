@@ -57,6 +57,7 @@ interface SQLEditorProps {
     ) => void;
     tableColumns: Record<string, Column[]>;
     databases?: string[]; // Available databases for workspace mode autocomplete
+    contextVariables?: string[]; // Shared Context variable names resolvable for the current env
 }
 
 function extractEditorVariables(
@@ -172,6 +173,7 @@ export default function SQLEditor({
     onRunQuery,
     tableColumns,
     databases = [],
+    contextVariables = [],
 }: SQLEditorProps) {
     const editorRef = useRef<monacoEditor.editor.IStandaloneCodeEditor | null>(
         null,
@@ -311,6 +313,23 @@ export default function SQLEditor({
                             });
                         });
 
+                        // Add shared Context variables (resolved per environment).
+                        // Skip any already declared locally — those win and are
+                        // already suggested above.
+                        contextVariables.forEach((variableName) => {
+                            if (editorVariables.includes(variableName)) return;
+                            suggestions.push({
+                                label: `@${variableName}`,
+                                kind: monaco.languages.CompletionItemKind
+                                    .Variable,
+                                insertText: `@${variableName}`,
+                                detail: "Context variable",
+                                documentation: `Shared variable from the active Context profile, resolved for the current environment.`,
+                                range,
+                                sortText: `0_@${variableName}`,
+                            });
+                        });
+
                         suggestions.push({
                             label: "@variable = value",
                             kind: monaco.languages.CompletionItemKind.Snippet,
@@ -422,7 +441,7 @@ export default function SQLEditor({
                     },
                 });
         },
-        [databases, tableColumns],
+        [databases, tableColumns, contextVariables],
     );
 
     const handleEditorDidMount: OnMount = (editor, monaco) => {

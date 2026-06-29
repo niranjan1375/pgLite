@@ -15,7 +15,6 @@ const TEMPLATE_ROOT_DIR = path.join(process.cwd(), ".pgconsole", "templates");
 export function parseTemplate(content: string): ParsedTemplate {
     const normalized = content.replace(/^\uFEFF/, "");
     const lines = normalized.split(/\r?\n/);
-    console.log("🚀 ~ lines:", lines);
 
     if (lines.length === 0 || !lines[0].startsWith("@")) {
         throw new Error(
@@ -147,6 +146,13 @@ function formatVariableValue(value: string): string {
     const upper = trimmed.toUpperCase();
     if (upper === "NULL" || upper === "TRUE" || upper === "FALSE") {
         return upper;
+    }
+
+    const isNumericLiteral =
+        /^-?\d+(?:\.\d+)?$/.test(trimmed) ||
+        /^-?\d+(?:\.\d+)?[eE][+-]?\d+$/.test(trimmed);
+    if (isNumericLiteral) {
+        return trimmed;
     }
 
     const isSingleQuotedLiteral = /^'(?:[^']|'')*'$/.test(trimmed);
