@@ -253,7 +253,7 @@ export async function POST(request: NextRequest) {
                 explain === true
                     ? `${EXPLAIN_PREFIX}${strippedQuery}`
                     : strippedQuery;
-
+            console.log("🚀 ~ finalQuery:", finalQuery);
             const result = await client.query(finalQuery);
 
             if (explain === true) {

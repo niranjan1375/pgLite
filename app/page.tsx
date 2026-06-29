@@ -365,6 +365,25 @@ export default function Home() {
         [],
     );
 
+    // Context variable names resolvable for the active tab's environment —
+    // surfaced in the editor's autocomplete.
+    const editorContextVariables = useMemo(() => {
+        // Context variables only apply in workspace mode.
+        if (activeTab?.mode !== "workspace") return [];
+        const profile = findActiveProfile(
+            contextProfiles,
+            activeContextProfileId,
+        );
+        const env = activeTab?.environment;
+        if (!profile || !env) return [];
+        return Object.keys(profile.environments?.[env] ?? {});
+    }, [
+        contextProfiles,
+        activeContextProfileId,
+        activeTab?.environment,
+        activeTab?.mode,
+    ]);
+
     useEffect(() => {
         if (typeof window === "undefined") {
             return;
@@ -1823,6 +1842,9 @@ export default function Home() {
                                             databasesByEnv[
                                                 activeTab.environment
                                             ] || []
+                                        }
+                                        contextVariables={
+                                            editorContextVariables
                                         }
                                     />
                                 )}
