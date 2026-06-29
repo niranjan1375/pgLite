@@ -20,7 +20,7 @@
 ### [P0-002] Unlimited Query Result Size
 
 **File**: `issues/P0-002-unlimited-results.md`  
-**Status**: ✅ Fixed (2026-02-27)  
+**Status**: ✅ Fixed (2026-02-27; reject→truncate update 2026-06-26)  
 **Risk**: DoS, memory overflow, browser crash  
 **Effort**: 2 hours (Actual: 30 min)
 
@@ -112,7 +112,7 @@
 ### [P2-001] All-or-Nothing Result Loading
 
 **File**: `issues/P2-001-cursor-streaming.md`  
-**Status**: Open  
+**Status**: Open (deferred — decision recorded 2026-06-26: use `pg-cursor` when memory pressure appears)  
 **Impact**: Wastes memory/bandwidth for large results  
 **Effort**: 1 week
 

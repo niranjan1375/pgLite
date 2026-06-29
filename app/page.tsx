@@ -20,6 +20,8 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import QueryHistory, { type QueryHistoryItem } from "@/components/QueryHistory";
 import SaveQueryModal from "@/components/SaveQueryModal";
 import SavedQueries from "@/components/SavedQueries";
+import ContextPanel from "@/components/ContextPanel";
+import ContextModal from "@/components/ContextModal";
 import { type QueryTab, type QueryTabsRef } from "@/components/QueryTabs";
 import {
     createSavedQuery,
@@ -33,8 +35,13 @@ import {
     extractVariables,
     selectionOverlapsVariableBlock,
     validateVariableValues,
-    validateVariableReferences,
 } from "@/lib/workspace-utils";
+import {
+    findActiveProfile,
+    pickReferencedVariables,
+    resolveVariables,
+    type ContextProfile,
+} from "@/lib/variable-resolver";
 import { RefreshIcon } from "@/icons";
 
 const SQLEditor = dynamic(() => import("@/components/SQLEditor"), {
@@ -46,6 +53,7 @@ const QueryTabs = dynamic(() => import("@/components/QueryTabs"), {
 });
 
 const WORKSPACE_QUERY_TIMEOUT_MS = 120000;
+const ACTIVE_CONTEXT_PROFILE_KEY = "pgLite_activeContextProfile";
 
 interface QueryResult {
     rows: Record<string, unknown>[];
@@ -199,12 +207,22 @@ export default function Home() {
     const [dbLatency, setDbLatency] = useState<number | undefined>();
     const [historyOpen, setHistoryOpen] = useState(false);
     const [savedQueriesOpen, setSavedQueriesOpen] = useState(false);
+    const [contextOpen, setContextOpen] = useState(false);
+    const [contextModalOpen, setContextModalOpen] = useState(false);
     const [queryHistory, setQueryHistory] = useState<QueryHistoryItem[]>([]);
     const [savedQueries, setSavedQueries] = useState<SavedQuery[]>([]);
     const [tableViewerState, setTableViewerState] =
         useState<TableViewerState | null>(null);
     const [saveQueryModalOpen, setSaveQueryModalOpen] = useState(false);
     const [saveQueryModalSeed, setSaveQueryModalSeed] = useState(0);
+    // Context: shared, env-scoped variables (workspace mode). Definitions are
+    // shared (server file); the active-profile choice is per-user (localStorage).
+    const [contextProfiles, setContextProfiles] = useState<ContextProfile[]>(
+        [],
+    );
+    const [activeContextProfileId, setActiveContextProfileId] = useState<
+        string | null
+    >(null);
 
     // Use refs to track in-flight requests and cache
     const databasesCacheRef = useRef<Record<string, string[]>>({});
@@ -260,6 +278,111 @@ export default function Home() {
 
         fetchEnvironments();
     }, []);
+
+    // Load Context profiles (shared, env-scoped variables) + the per-user
+    // active-profile selection.
+    useEffect(() => {
+        const fetchContexts = async () => {
+            try {
+                const res = await fetch("/api/contexts", { cache: "no-store" });
+                const data = await res.json();
+                if (Array.isArray(data?.profiles)) {
+                    setContextProfiles(data.profiles);
+                }
+            } catch (err) {
+                console.error("Failed to fetch contexts:", err);
+            }
+        };
+
+        try {
+            const stored = localStorage.getItem(ACTIVE_CONTEXT_PROFILE_KEY);
+            if (stored) setActiveContextProfileId(stored);
+        } catch {
+            // localStorage unavailable — fall back to first profile at resolve time.
+        }
+
+        fetchContexts();
+    }, []);
+
+    // Build the variables payload for a workspace run: merge the active
+    // Context profile's values for the env with locally-declared @vars (local
+    // wins), then keep only the variables the SQL actually references.
+    const buildWorkspaceVariables = useCallback(
+        (
+            sql: string,
+            localVariables: Record<string, string>,
+            environment: string,
+        ): Record<string, string> => {
+            const profile = findActiveProfile(
+                contextProfiles,
+                activeContextProfileId,
+            );
+            const effective = resolveVariables({
+                profile,
+                local: localVariables,
+                environment,
+            });
+            const { picked, missing } = pickReferencedVariables(sql, effective);
+            if (missing.length > 0) {
+                throw new Error(
+                    `SQL references undefined variables: ${missing
+                        .map((name) => `@${name}`)
+                        .join(", ")}`,
+                );
+            }
+            if (Object.keys(picked).length > 0) {
+                validateVariableValues(picked);
+            }
+            return picked;
+        },
+        [contextProfiles, activeContextProfileId],
+    );
+
+    const handleSetActiveContextProfile = useCallback((id: string) => {
+        setActiveContextProfileId(id);
+        try {
+            localStorage.setItem(ACTIVE_CONTEXT_PROFILE_KEY, id);
+        } catch {
+            // localStorage unavailable — selection stays in-memory for the session.
+        }
+    }, []);
+
+    const handleSaveContexts = useCallback(
+        async (profiles: ContextProfile[]) => {
+            const res = await fetch("/api/contexts", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ version: 1, profiles }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data?.error || "Failed to save context.");
+            }
+            setContextProfiles(
+                Array.isArray(data?.profiles) ? data.profiles : [],
+            );
+        },
+        [],
+    );
+
+    // Context variable names resolvable for the active tab's environment —
+    // surfaced in the editor's autocomplete.
+    const editorContextVariables = useMemo(() => {
+        // Context variables only apply in workspace mode.
+        if (activeTab?.mode !== "workspace") return [];
+        const profile = findActiveProfile(
+            contextProfiles,
+            activeContextProfileId,
+        );
+        const env = activeTab?.environment;
+        if (!profile || !env) return [];
+        return Object.keys(profile.environments?.[env] ?? {});
+    }, [
+        contextProfiles,
+        activeContextProfileId,
+        activeTab?.environment,
+        activeTab?.mode,
+    ]);
 
     useEffect(() => {
         if (typeof window === "undefined") {
@@ -1353,14 +1476,14 @@ export default function Home() {
 
             if (currentTab.mode === "workspace") {
                 try {
-                    const { variables, sqlWithoutVars } = extractVariables(
-                        currentTab.query,
-                    );
+                    const { variables: localVariables, sqlWithoutVars } =
+                        extractVariables(currentTab.query);
 
-                    if (Object.keys(variables).length > 0) {
-                        validateVariableValues(variables);
-                        validateVariableReferences(sqlWithoutVars, variables);
-                    }
+                    const variables = buildWorkspaceVariables(
+                        sqlWithoutVars,
+                        localVariables,
+                        currentTab.environment,
+                    );
 
                     await runQuery(
                         sqlWithoutVars,
@@ -1391,7 +1514,7 @@ export default function Home() {
                 explain,
             );
         },
-        [runQuery],
+        [runQuery, buildWorkspaceVariables],
     );
 
     // Fetch databases for a specific environment
@@ -1506,14 +1629,22 @@ export default function Home() {
                 sidebarCollapsed={sidebarCollapsed}
                 historyOpen={historyOpen}
                 savedQueriesOpen={savedQueriesOpen}
+                contextOpen={contextOpen}
                 onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
                 onToggleHistory={() => {
                     setHistoryOpen((prev) => !prev);
                     setSavedQueriesOpen(false);
+                    setContextOpen(false);
                 }}
                 onToggleSavedQueries={() => {
                     setSavedQueriesOpen((prev) => !prev);
                     setHistoryOpen(false);
+                    setContextOpen(false);
+                }}
+                onToggleContext={() => {
+                    setContextOpen((prev) => !prev);
+                    setHistoryOpen(false);
+                    setSavedQueriesOpen(false);
                 }}
             />
 
@@ -1634,9 +1765,10 @@ export default function Home() {
                                                     "workspace"
                                                 ) {
                                                     try {
-                                                        // Extract variables from full editor content
+                                                        // Extract locally-declared variables from full editor content
                                                         const {
-                                                            variables,
+                                                            variables:
+                                                                localVariables,
                                                             variableBlockEndLine,
                                                         } = extractVariables(
                                                             currentTab.query,
@@ -1666,20 +1798,13 @@ export default function Home() {
                                                             );
                                                         }
 
-                                                        // Validate variable values if any exist
-                                                        if (
-                                                            Object.keys(
-                                                                variables,
-                                                            ).length > 0
-                                                        ) {
-                                                            validateVariableValues(
-                                                                variables,
-                                                            );
-                                                            validateVariableReferences(
+                                                        // Merge Context + local vars, keep only referenced ones
+                                                        const variables =
+                                                            buildWorkspaceVariables(
                                                                 sqlToExecute,
-                                                                variables,
+                                                                localVariables,
+                                                                currentTab.environment,
                                                             );
-                                                        }
 
                                                         // Execute with structured payload
                                                         runQuery(
@@ -1717,6 +1842,9 @@ export default function Home() {
                                             databasesByEnv[
                                                 activeTab.environment
                                             ] || []
+                                        }
+                                        contextVariables={
+                                            editorContextVariables
                                         }
                                     />
                                 )}
@@ -1914,7 +2042,35 @@ export default function Home() {
                         onDeleteItem={deleteSavedQuery}
                         onToggleStar={handleToggleSavedQueryStar}
                     />
+
+                    <ContextPanel
+                        isOpen={contextOpen}
+                        onToggle={() => {
+                            setContextOpen((prev) => !prev);
+                            setHistoryOpen(false);
+                            setSavedQueriesOpen(false);
+                        }}
+                        profiles={contextProfiles}
+                        activeProfileId={activeContextProfileId}
+                        environmentIds={availableEnvironmentIds}
+                        environmentNamesById={environmentNamesById}
+                        onSetActiveProfile={handleSetActiveContextProfile}
+                        onSave={handleSaveContexts}
+                    />
                 </div>
+
+                <ContextModal
+                    isOpen={contextModalOpen}
+                    onToggle={() => setContextModalOpen((prev) => !prev)}
+                    onClose={() => setContextModalOpen(false)}
+                    profiles={contextProfiles}
+                    activeProfileId={activeContextProfileId}
+                    environmentIds={availableEnvironmentIds}
+                    environmentNamesById={environmentNamesById}
+                    onSetActiveProfile={handleSetActiveContextProfile}
+                    onSave={handleSaveContexts}
+                    currentEnvironment={activeTab?.environment}
+                />
 
                 {/* Status Bar */}
                 <StatusBar
@@ -1925,6 +2081,13 @@ export default function Home() {
                     executionTime={executionTime}
                     latency={dbLatency}
                     connected={connected}
+                    contextProfileName={
+                        findActiveProfile(
+                            contextProfiles,
+                            activeContextProfileId,
+                        )?.name
+                    }
+                    onOpenContext={() => setContextModalOpen(true)}
                 />
             </div>
 
