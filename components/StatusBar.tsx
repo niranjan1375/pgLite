@@ -10,6 +10,8 @@ interface StatusBarProps {
     executionTime?: number;
     latency?: number;
     connected: boolean;
+    contextProfileName?: string;
+    onOpenContext?: () => void;
 }
 
 export default function StatusBar({
@@ -20,6 +22,8 @@ export default function StatusBar({
     executionTime,
     latency,
     connected,
+    contextProfileName,
+    onOpenContext,
 }: StatusBarProps) {
     const envColor = getEnvironmentColor(environment);
     const isProd = environment.includes("uat") || environment.includes("prod");
@@ -85,6 +89,23 @@ export default function StatusBar({
                     >
                         readonly
                     </div>
+                )}
+
+                {onOpenContext && (
+                    <button
+                        onClick={onOpenContext}
+                        style={{
+                            ...seg,
+                            color: "var(--text-secondary)",
+                            cursor: "pointer",
+                        }}
+                        title="Open context (Cmd/Ctrl+Shift+G)"
+                    >
+                        <span style={{ color: "var(--text-dim)" }}>ctx</span>
+                        <span style={{ color: "var(--accent)" }}>
+                            {contextProfileName || "none"}
+                        </span>
+                    </button>
                 )}
             </div>
 

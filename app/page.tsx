@@ -21,6 +21,7 @@ import QueryHistory, { type QueryHistoryItem } from "@/components/QueryHistory";
 import SaveQueryModal from "@/components/SaveQueryModal";
 import SavedQueries from "@/components/SavedQueries";
 import ContextPanel from "@/components/ContextPanel";
+import ContextModal from "@/components/ContextModal";
 import { type QueryTab, type QueryTabsRef } from "@/components/QueryTabs";
 import {
     createSavedQuery,
@@ -207,6 +208,7 @@ export default function Home() {
     const [historyOpen, setHistoryOpen] = useState(false);
     const [savedQueriesOpen, setSavedQueriesOpen] = useState(false);
     const [contextOpen, setContextOpen] = useState(false);
+    const [contextModalOpen, setContextModalOpen] = useState(false);
     const [queryHistory, setQueryHistory] = useState<QueryHistoryItem[]>([]);
     const [savedQueries, setSavedQueries] = useState<SavedQuery[]>([]);
     const [tableViewerState, setTableViewerState] =
@@ -2035,6 +2037,19 @@ export default function Home() {
                     />
                 </div>
 
+                <ContextModal
+                    isOpen={contextModalOpen}
+                    onToggle={() => setContextModalOpen((prev) => !prev)}
+                    onClose={() => setContextModalOpen(false)}
+                    profiles={contextProfiles}
+                    activeProfileId={activeContextProfileId}
+                    environmentIds={availableEnvironmentIds}
+                    environmentNamesById={environmentNamesById}
+                    onSetActiveProfile={handleSetActiveContextProfile}
+                    onSave={handleSaveContexts}
+                    currentEnvironment={activeTab?.environment}
+                />
+
                 {/* Status Bar */}
                 <StatusBar
                     environment={activeTab?.environment || ""}
@@ -2044,6 +2059,13 @@ export default function Home() {
                     executionTime={executionTime}
                     latency={dbLatency}
                     connected={connected}
+                    contextProfileName={
+                        findActiveProfile(
+                            contextProfiles,
+                            activeContextProfileId,
+                        )?.name
+                    }
+                    onOpenContext={() => setContextModalOpen(true)}
                 />
             </div>
 
