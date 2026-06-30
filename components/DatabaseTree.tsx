@@ -444,18 +444,18 @@ export default function DatabaseTree({
                                 {/* Database Header */}
                                 <button
                                     onClick={() => toggleDatabase(dbInfo.database)}
-                                    className="w-full flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-bold tracking-wide transition-colors"
-                                    style={{ color: "var(--accent)" }}
-                                    onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(0,255,136,0.05)"; }}
+                                    className="w-full flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-medium transition-colors"
+                                    style={{ color: "var(--text-primary)" }}
+                                    onMouseEnter={(e) => { e.currentTarget.style.background = "var(--panel-elevated)"; }}
                                     onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
                                 >
                                     <svg
                                         width="8" height="8" viewBox="0 0 8 8" fill="currentColor"
-                                        style={{ flexShrink: 0, transition: "transform 0.15s", transform: isDbExpanded ? "rotate(90deg)" : "rotate(0deg)" }}
+                                        style={{ flexShrink: 0, color: "var(--text-dim)", transition: "transform 0.15s", transform: isDbExpanded ? "rotate(90deg)" : "rotate(0deg)" }}
                                     >
                                         <polygon points="0,0 8,4 0,8" />
                                     </svg>
-                                    <span style={{ color: "color-mix(in srgb, var(--accent) 55%, transparent)", flexShrink: 0 }}>
+                                    <span style={{ color: "var(--text-dim)", flexShrink: 0 }}>
                                         <Icon type="database" />
                                     </span>
                                     <span>{dbInfo.database}</span>
