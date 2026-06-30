@@ -481,7 +481,9 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
                         onDoubleClick={() => renameTab(tab.id)}
                         className="relative flex items-center gap-1.5 h-full text-[12px] transition-all shrink-0"
                         style={{
-                            padding: "0 14px",
+                            padding: "0 12px",
+                            maxWidth: "190px",
+                            overflow: "hidden",
                             color: isActive ? envColor : "var(--text-muted)",
                             background: isActive
                                 ? "var(--panel)"
@@ -493,29 +495,34 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
                         }}
                         title="Double-click to rename"
                     >
+                        <span
+                            style={{
+                                width: 7,
+                                height: 7,
+                                borderRadius: "50%",
+                                background: envColor,
+                                flexShrink: 0,
+                            }}
+                        />
+                        <span className="truncate">{displayName}</span>
                         {tab.readOnly && (
                             <span
-                                className="px-1 text-[9px] border"
-                                style={{
-                                    color: "var(--warning)",
-                                    borderColor: "rgba(255,149,0,0.4)",
-                                }}
+                                className="text-[9px] tracking-wide"
+                                style={{ color: "var(--text-dim)", flexShrink: 0 }}
+                                title="Read-only"
                             >
                                 RO
                             </span>
                         )}
                         {tab.mode === "workspace" && (
                             <span
-                                className="px-1 text-[9px] border"
-                                style={{
-                                    color: "var(--accent)",
-                                    borderColor: "rgba(0,255,136,0.4)",
-                                }}
+                                className="text-[9px] tracking-wide"
+                                style={{ color: "var(--text-dim)", flexShrink: 0 }}
+                                title="Workspace mode"
                             >
                                 WS
                             </span>
                         )}
-                        <span>{displayName}</span>
                         {tabs.length > 1 && (
                             <span
                                 onClick={(e) => {

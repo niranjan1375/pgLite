@@ -563,14 +563,14 @@ export default function ResultsTable({
         <div className="flex flex-col h-full">
             {/* Results Header - UPPERCASE META */}
             <div
-                className="h-[32px] flex items-center justify-between px-3 text-[11px] uppercase tracking-wide border-b"
+                className="h-[32px] flex items-center justify-between gap-3 px-3 text-[11px] uppercase tracking-wide border-b overflow-x-auto"
                 style={{
                     background: "var(--panel)",
                     borderColor: "var(--border)",
                     color: "var(--text-muted)",
                 }}
             >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 min-w-0 whitespace-nowrap">
                     <span>
                         RESULTS ({totalResultRows.toLocaleString()} ROWS)
                     </span>
@@ -641,7 +641,7 @@ export default function ResultsTable({
                         </>
                     )}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                     {tableView && onRefreshTableView && (
                         <button
                             onClick={onRefreshTableView}

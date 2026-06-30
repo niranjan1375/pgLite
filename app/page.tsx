@@ -1852,14 +1852,13 @@ export default function Home() {
 
                             {/* Run Button Strip */}
                             <div
-                                className="h-[34px] flex items-center justify-between px-3 border-t flex-shrink-0"
+                                className="h-[34px] flex items-center justify-between gap-3 px-3 border-t flex-shrink-0 overflow-x-auto"
                                 style={{
                                     background: "var(--panel)",
                                     borderColor: "var(--border)",
-                                    gap: "8px",
                                 }}
                             >
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 shrink-0">
                                     {activeTab?.mode === "workspace" && (
                                         <button
                                             onClick={handleSaveTemplate}
@@ -1885,7 +1884,7 @@ export default function Home() {
                                     </button>
                                 </div>
 
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 shrink-0">
                                     <button
                                         onClick={() => fetchTablesAndColumns(true)}
                                         disabled={loadingTables}
