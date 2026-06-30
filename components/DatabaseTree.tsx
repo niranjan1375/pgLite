@@ -281,14 +281,14 @@ export default function DatabaseTree({
                     <div className="flex items-center gap-2">
                         <span
                             className="text-[10px] uppercase tracking-[0.18em] font-bold"
-                            style={{ color: "#4a6a80" }}
+                            style={{ color: "var(--text-muted)" }}
                         >
                             {workspaceMode ? "explorer" : "schema"}
                         </span>
                         {workspaceMode && (
                             <span
                                 className="px-1 text-[9px] border font-bold tracking-widest"
-                                style={{ color: "var(--accent)", borderColor: "rgba(0,255,136,0.35)" }}
+                                style={{ color: "var(--accent)", borderColor: "color-mix(in srgb, var(--accent) 35%, transparent)" }}
                             >
                                 WS
                             </span>
@@ -299,14 +299,14 @@ export default function DatabaseTree({
                             <span className="text-[11px]" style={{ color: "var(--text-primary)" }}>
                                 {selectedDatabase}
                             </span>
-                            <span className="text-[10px]" style={{ color: "#2a3f50" }}>
+                            <span className="text-[10px]" style={{ color: "var(--text-dim)" }}>
                                 {totalTables} tables
                             </span>
                         </div>
                     )}
                     {workspaceMode && (
                         <div className="flex items-center gap-2">
-                            <span className="text-[10px]" style={{ color: "#2a3f50" }}>
+                            <span className="text-[10px]" style={{ color: "var(--text-dim)" }}>
                                 {workspaceSchemas.length} dbs · {totalTables} tables
                             </span>
                         </div>
@@ -341,7 +341,7 @@ export default function DatabaseTree({
                     <svg
                         className="absolute left-2 pointer-events-none"
                         width="11" height="11" viewBox="0 0 11 11" fill="none"
-                        stroke="#2a3f50" strokeWidth="1.5" strokeLinecap="round"
+                        stroke="var(--text-dim)" strokeWidth="1.5" strokeLinecap="round"
                     >
                         <circle cx="4.5" cy="4.5" r="3.5" />
                         <line x1="7.5" y1="7.5" x2="10" y2="10" />
@@ -455,7 +455,7 @@ export default function DatabaseTree({
                                     >
                                         <polygon points="0,0 8,4 0,8" />
                                     </svg>
-                                    <span style={{ color: "rgba(0,255,136,0.5)", flexShrink: 0 }}>
+                                    <span style={{ color: "color-mix(in srgb, var(--accent) 55%, transparent)", flexShrink: 0 }}>
                                         <Icon type="database" />
                                     </span>
                                     <span>{dbInfo.database}</span>
@@ -492,9 +492,9 @@ export default function DatabaseTree({
                                                 <button
                                                     onClick={() => toggleSchema(schemaKey)}
                                                     className="w-full flex items-center gap-1.5 px-2 py-1 text-[10px] uppercase tracking-widest transition-colors"
-                                                    style={{ color: "#3a5570" }}
-                                                    onMouseEnter={(e) => { e.currentTarget.style.color = "#6a8aaa"; }}
-                                                    onMouseLeave={(e) => { e.currentTarget.style.color = "#3a5570"; }}
+                                                    style={{ color: "var(--text-dim)" }}
+                                                    onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-muted)"; }}
+                                                    onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-dim)"; }}
                                                 >
                                                     <svg
                                                         width="6" height="6" viewBox="0 0 8 8" fill="currentColor"
@@ -506,7 +506,7 @@ export default function DatabaseTree({
                                                     <span>
                                                         {schemaInfo.schema === "public" ? "tables" : schemaInfo.schema}
                                                     </span>
-                                                    <span className="ml-auto" style={{ color: "#1e3048" }}>
+                                                    <span className="ml-auto" style={{ color: "var(--text-dim)" }}>
                                                         {schemaInfo.tables.length}
                                                     </span>
                                                 </button>
@@ -542,7 +542,7 @@ export default function DatabaseTree({
                                                                                     )
                                                                                 }
                                                                                 className="p-1 flex-shrink-0 hover:opacity-80 transition-opacity"
-                                                                                style={{ color: "#2a3f50" }}
+                                                                                style={{ color: "var(--text-dim)" }}
                                                                             >
                                                                                 <svg
                                                                                     width="6" height="6" viewBox="0 0 8 8" fill="currentColor"
@@ -565,14 +565,14 @@ export default function DatabaseTree({
                                                                                     )
                                                                                 }
                                                                                 className="flex-1 text-left px-2 py-1 text-[11px] transition-colors flex items-center gap-2 min-w-0"
-                                                                                style={{ color: "#7a9ab0" }}
+                                                                                style={{ color: "var(--text-secondary)" }}
                                                                                 onMouseEnter={(e) => {
                                                                                     e.currentTarget.style.background = "rgba(0,229,255,0.04)";
                                                                                     e.currentTarget.style.color = "var(--cyan)";
                                                                                 }}
                                                                                 onMouseLeave={(e) => {
                                                                                     e.currentTarget.style.background = "transparent";
-                                                                                    e.currentTarget.style.color = "#7a9ab0";
+                                                                                    e.currentTarget.style.color = "var(--text-secondary)";
                                                                                 }}
                                                                                 title={`Preview ${dbInfo.database}.${tableInfo.name}`}
                                                                             >
@@ -729,9 +729,9 @@ export default function DatabaseTree({
                                 <button
                                     onClick={() => toggleStandardSchema(schema)}
                                     className="w-full text-[10px] uppercase tracking-widest px-2 py-1 flex items-center gap-1.5 transition-colors"
-                                    style={{ color: "#3a5570" }}
-                                    onMouseEnter={(e) => { e.currentTarget.style.color = "#6a8aaa"; }}
-                                    onMouseLeave={(e) => { e.currentTarget.style.color = "#3a5570"; }}
+                                    style={{ color: "var(--text-dim)" }}
+                                    onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-muted)"; }}
+                                    onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-dim)"; }}
                                 >
                                     <svg
                                         width="6" height="6" viewBox="0 0 8 8" fill="currentColor"
@@ -741,7 +741,7 @@ export default function DatabaseTree({
                                     </svg>
                                     <Icon type="schema" />
                                     {schema === "public" ? "tables" : schema}
-                                    <span className="ml-auto" style={{ color: "#1e3048" }}>
+                                    <span className="ml-auto" style={{ color: "var(--text-dim)" }}>
                                         {tables.length}
                                     </span>
                                 </button>
@@ -766,7 +766,7 @@ export default function DatabaseTree({
                                                         <button
                                                             onClick={() => toggleTable(tableKey)}
                                                             className="p-1 flex-shrink-0 transition-opacity hover:opacity-80"
-                                                            style={{ color: "#2a3f50" }}
+                                                            style={{ color: "var(--text-dim)" }}
                                                         >
                                                             <svg
                                                                 width="6" height="6" viewBox="0 0 8 8" fill="currentColor"
@@ -782,14 +782,14 @@ export default function DatabaseTree({
                                                                 )
                                                             }
                                                             className="flex-1 text-left px-2 py-1 text-[11px] transition-colors flex items-center gap-2 min-w-0"
-                                                            style={{ color: "#7a9ab0" }}
+                                                            style={{ color: "var(--text-secondary)" }}
                                                             onMouseEnter={(e) => {
                                                                 e.currentTarget.style.background = "rgba(0,229,255,0.04)";
                                                                 e.currentTarget.style.color = "var(--cyan)";
                                                             }}
                                                             onMouseLeave={(e) => {
                                                                 e.currentTarget.style.background = "transparent";
-                                                                e.currentTarget.style.color = "#7a9ab0";
+                                                                e.currentTarget.style.color = "var(--text-secondary)";
                                                             }}
                                                             title="Preview table data"
                                                         >

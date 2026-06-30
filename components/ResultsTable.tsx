@@ -496,7 +496,7 @@ export default function ResultsTable({
                 </div>
 
                 {/* Main message */}
-                <div className="px-4 py-3" style={{ color: "#e8a0aa", fontFamily: "var(--font-mono)", lineHeight: 1.6 }}>
+                <div className="px-4 py-3" style={{ color: "var(--error)", fontFamily: "var(--font-mono)", lineHeight: 1.6 }}>
                     {cleanMessage}
                 </div>
 
@@ -509,7 +509,7 @@ export default function ResultsTable({
                         {detail && (
                             <div className="flex gap-2 pt-2">
                                 <span className="text-[10px] uppercase tracking-wider flex-shrink-0 pt-px" style={{ color: "rgba(255,45,85,0.5)", width: 48 }}>detail</span>
-                                <span className="text-[11px]" style={{ color: "#7a8a90" }}>{detail}</span>
+                                <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>{detail}</span>
                             </div>
                         )}
                         {hint && (
@@ -849,7 +849,7 @@ export default function ResultsTable({
                                 background: "var(--panel-elevated)",
                                 borderRight: "1px solid var(--grid-line)",
                                 borderBottom: "1px solid var(--border-bright)",
-                                color: "#2a3f50",
+                                color: "var(--text-dim)",
                             }}
                         >
                             #
@@ -955,7 +955,7 @@ export default function ResultsTable({
                                             width: ROW_NUM_WIDTH,
                                             minWidth: ROW_NUM_WIDTH,
                                             fontSize: 10,
-                                            color: "#1e3048",
+                                            color: "var(--text-dim)",
                                             background: "inherit",
                                             borderRight: "1px solid #1a2840",
                                             borderBottom: "1px solid #1a2840",
@@ -1058,7 +1058,7 @@ export default function ResultsTable({
                                                         >
                                                             <svg
                                                                 width="10" height="10" viewBox="0 0 10 10" fill="none"
-                                                                stroke="#2a3f50" strokeWidth="1.2" strokeLinecap="round"
+                                                                stroke="var(--text-dim)" strokeWidth="1.2" strokeLinecap="round"
                                                                 style={{ marginLeft: "auto" }}
                                                             >
                                                                 <path d="M1 5h8M6 2l3 3-3 3" />
