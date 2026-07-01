@@ -445,7 +445,7 @@ export default function DatabaseTree({
                                 <button
                                     onClick={() => toggleDatabase(dbInfo.database)}
                                     className="w-full flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-medium transition-colors"
-                                    style={{ color: "var(--text-primary)" }}
+                                    style={{ color: "var(--text-secondary)" }}
                                     onMouseEnter={(e) => { e.currentTarget.style.background = "var(--panel-elevated)"; }}
                                     onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
                                 >
@@ -491,10 +491,10 @@ export default function DatabaseTree({
                                                 {/* Schema Header */}
                                                 <button
                                                     onClick={() => toggleSchema(schemaKey)}
-                                                    className="w-full flex items-center gap-1.5 px-2 py-1 text-[10px] uppercase tracking-widest transition-colors"
-                                                    style={{ color: "var(--text-dim)" }}
-                                                    onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-muted)"; }}
-                                                    onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-dim)"; }}
+                                                    className="w-full flex items-center gap-1.5 px-2 py-1 text-[11px] transition-colors"
+                                                    style={{ color: "var(--text-muted)" }}
+                                                    onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-secondary)"; }}
+                                                    onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; }}
                                                 >
                                                     <svg
                                                         width="6" height="6" viewBox="0 0 8 8" fill="currentColor"
@@ -728,10 +728,10 @@ export default function DatabaseTree({
                             <div key={schema} className="mb-1">
                                 <button
                                     onClick={() => toggleStandardSchema(schema)}
-                                    className="w-full text-[10px] uppercase tracking-widest px-2 py-1 flex items-center gap-1.5 transition-colors"
-                                    style={{ color: "var(--text-dim)" }}
-                                    onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-muted)"; }}
-                                    onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-dim)"; }}
+                                    className="w-full text-[11px] px-2 py-1 flex items-center gap-1.5 transition-colors"
+                                    style={{ color: "var(--text-muted)" }}
+                                    onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-secondary)"; }}
+                                    onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; }}
                                 >
                                     <svg
                                         width="6" height="6" viewBox="0 0 8 8" fill="currentColor"
