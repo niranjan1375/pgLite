@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createPool } from "@/lib/db";
+import { getPool } from "@/lib/db";
 import { getDefaultEnvironment } from "@/lib/environments";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-    let pool;
     const start = Date.now();
 
     try {
@@ -13,7 +12,7 @@ export async function GET(req: NextRequest) {
             req.nextUrl.searchParams.get("environment") ||
             getDefaultEnvironment();
 
-        pool = createPool(environment);
+        const pool = getPool(environment);
         await pool.query("SELECT 1");
         const latencyMs = Date.now() - start;
 
@@ -25,9 +24,5 @@ export async function GET(req: NextRequest) {
             { ok: false, error: message },
             { status: 503 },
         );
-    } finally {
-        if (pool) {
-            await pool.end();
-        }
     }
 }

@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { PoolClient } from "pg";
-import { createPool } from "@/lib/db";
+import { getPool } from "@/lib/db";
 import { getDefaultEnvironment } from "@/lib/environments";
 import { registerQuery, unregisterQuery } from "@/lib/query-registry";
 import { rateLimit } from "@/lib/rate-limit";
-import { describeReadOnlyError, runUserQuery } from "@/lib/run-query";
+import {
+    describeReadOnlyError,
+    releaseAfterUserQuery,
+    runUserQuery,
+} from "@/lib/run-query";
 import { isExplainableReadQuery } from "@/lib/sql-safety";
 
 // Server-side row limit to prevent DoS and memory overflow
@@ -32,7 +36,6 @@ export async function POST(req: NextRequest) {
         return limited;
     }
 
-    let pool = null;
     let appliedQueryTimeoutMs = DEFAULT_QUERY_TIMEOUT_MS;
 
     try {
@@ -64,7 +67,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Create pool for this specific request
-        pool = createPool(environment, database);
+        const pool = getPool(environment, database);
 
         // Pin a single connection so (a) statement_timeout applies to the exact
         // connection running the query and (b) we can capture its backend PID
@@ -132,7 +135,7 @@ export async function POST(req: NextRequest) {
             if (queryId) {
                 unregisterQuery(queryId);
             }
-            client.release();
+            await releaseAfterUserQuery(client);
         }
     } catch (err: unknown) {
         const readOnlyError = describeReadOnlyError(err);
@@ -167,10 +170,5 @@ export async function POST(req: NextRequest) {
             { error: "An unknown error occurred." },
             { status: 500 },
         );
-    } finally {
-        // Always clean up pool after query
-        if (pool) {
-            await pool.end();
-        }
     }
 }

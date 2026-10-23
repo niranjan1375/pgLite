@@ -37,15 +37,25 @@ const typeParsers: CustomTypesConfig = {
     }) as CustomTypesConfig["getTypeParser"],
 };
 
+// One pool per environment + database, reused across requests so each query
+// doesn't pay a fresh TCP + TLS handshake (slow over VPN). Kept on globalThis
+// so Next.js dev hot reloads don't orphan pools.
+const globalForPools = globalThis as typeof globalThis & {
+    __pgLitePools?: Map<string, Pool>;
+};
+const pools = (globalForPools.__pgLitePools ??= new Map<string, Pool>());
+
+const DEFAULT_STATEMENT_TIMEOUT_MS = 30000;
+
 /**
- * Creates a new PostgreSQL connection pool for the specified environment and database.
- * No caching - each call creates a fresh pool. The Pool itself manages connection pooling internally.
+ * Shared pool for an environment and database. Never call `end()` on it.
+ * Routes that run user SQL must hand their client back through
+ * `releaseAfterUserQuery` (lib/run-query.ts) so no session state leaks.
  *
  * @param environment - Environment ID (loadtest, sandbox, staging, etc.)
  * @param database - Optional database name (overrides environment default)
- * @returns A new Pool instance
  */
-export function createPool(
+export function getPool(
     environment: string = getDefaultEnvironment(),
     database?: string,
 ): Pool {
@@ -57,21 +67,42 @@ export function createPool(
         throw new Error(`Unknown environment "${environment}".`);
     }
 
-    return new Pool({
+    const targetDatabase = database || envConfig.database;
+    const key = `${environment}\u0000${targetDatabase}`;
+    const existing = pools.get(key);
+    if (existing) {
+        return existing;
+    }
+
+    const pool = new Pool({
         host: envConfig.host,
         port: envConfig.port,
         user: envConfig.user,
         password: envConfig.password,
-        database: database || envConfig.database,
+        database: targetDatabase,
         // Local Postgres usually has SSL off; forcing it fails with
         // "The server does not support SSL connections".
         ssl: LOCAL_HOSTS.has(envConfig.host)
             ? false
             : { rejectUnauthorized: false },
-        // Connection pool settings
-        max: 10, // Maximum 10 connections per pool
+        // Session default for every connection (metadata routes included);
+        // query routes override it per request, and DISCARD ALL restores it.
+        statement_timeout: DEFAULT_STATEMENT_TIMEOUT_MS,
+        max: 10,
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 5000,
         types: typeParsers,
     });
+
+    // An idle connection dropping (VPN off, DB restart) emits 'error' on the
+    // pool; unhandled, that would crash the server process.
+    pool.on("error", (error) => {
+        console.error(
+            `Idle connection error (${environment}/${targetDatabase}):`,
+            error.message,
+        );
+    });
+
+    pools.set(key, pool);
+    return pool;
 }

@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { PoolClient } from "pg";
-import { createPool } from "@/lib/db";
+import { getPool } from "@/lib/db";
 import { applyVariables, validateVariables } from "@/lib/templates";
 import { registerQuery, unregisterQuery } from "@/lib/query-registry";
 import { rateLimit } from "@/lib/rate-limit";
-import { describeReadOnlyError, runUserQuery } from "@/lib/run-query";
+import {
+    describeReadOnlyError,
+    releaseAfterUserQuery,
+    runUserQuery,
+} from "@/lib/run-query";
 import { isExplainableReadQuery, scanStatements } from "@/lib/sql-safety";
 
 export const dynamic = "force-dynamic";
@@ -102,7 +106,6 @@ export async function POST(request: NextRequest) {
         return limited;
     }
 
-    let pool: ReturnType<typeof createPool> | null = null;
     let requestVariables: Record<string, string> = {};
     let appliedQueryTimeoutMs = DEFAULT_QUERY_TIMEOUT_MS;
 
@@ -225,7 +228,7 @@ export async function POST(request: NextRequest) {
         // it), which made valid queries fail with a 5s connection timeout even
         // when the target DB was fine. A non-existent database surfaces as
         // SQLSTATE 3D000 on connect, which we translate to a friendly message.
-        pool = createPool(environment, routedDatabase);
+        const pool = getPool(environment, routedDatabase);
 
         let client: PoolClient;
         try {
@@ -328,7 +331,7 @@ export async function POST(request: NextRequest) {
             if (queryId) {
                 unregisterQuery(queryId);
             }
-            client.release();
+            await releaseAfterUserQuery(client);
         }
     } catch (error: unknown) {
         console.error("Workspace query error:", error);
@@ -372,9 +375,5 @@ export async function POST(request: NextRequest) {
             { error: "An unknown error occurred" },
             { status: 500 },
         );
-    } finally {
-        if (pool) {
-            await pool.end();
-        }
     }
 }

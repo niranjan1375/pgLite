@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createPool } from "@/lib/db";
+import { getPool } from "@/lib/db";
 import { getDefaultEnvironment } from "@/lib/environments";
 
 export const dynamic = "force-dynamic";
@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
         }
 
         // First, get all databases
-        const dbPool = createPool(environment, "postgres");
+        const dbPool = getPool(environment, "postgres");
         const dbResult = await dbPool.query(`
             SELECT datname 
             FROM pg_database 
@@ -67,7 +67,6 @@ export async function GET(req: NextRequest) {
               AND datallowconn = true
             ORDER BY datname;
         `);
-        await dbPool.end();
 
         const databases = dbResult.rows
             .map((row) => row.datname)
@@ -77,10 +76,8 @@ export async function GET(req: NextRequest) {
 
         // For each database, fetch schemas and tables
         for (const dbName of databases) {
-            let pool: ReturnType<typeof createPool> | undefined;
-
             try {
-                pool = createPool(environment, dbName);
+                const pool = getPool(environment, dbName);
 
                 const schemaResult = await pool.query(`
                     WITH primary_keys AS (
@@ -165,10 +162,6 @@ export async function GET(req: NextRequest) {
                 });
             } catch {
                 skippedDatabases.push(dbName);
-            } finally {
-                if (pool) {
-                    await pool.end();
-                }
             }
         }
 

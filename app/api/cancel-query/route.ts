@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createPool } from "@/lib/db";
+import { getPool } from "@/lib/db";
 import { getRunningQuery, unregisterQuery } from "@/lib/query-registry";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-    let pool: ReturnType<typeof createPool> | null = null;
-
     try {
         const body = await req.json();
         const queryId: string = body?.queryId;
@@ -27,7 +25,7 @@ export async function POST(req: NextRequest) {
 
         // Issue the cancel over a fresh connection — the connection running the
         // target query is busy and cannot cancel itself.
-        pool = createPool(running.environment, running.database);
+        const pool = getPool(running.environment, running.database);
         const result = await pool.query("SELECT pg_cancel_backend($1) AS ok", [
             running.pid,
         ]);
@@ -42,9 +40,5 @@ export async function POST(req: NextRequest) {
         const message =
             err instanceof Error ? err.message : "An unknown error occurred.";
         return NextResponse.json({ error: message }, { status: 500 });
-    } finally {
-        if (pool) {
-            await pool.end();
-        }
     }
 }

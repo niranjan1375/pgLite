@@ -49,3 +49,19 @@ export function describeReadOnlyError(error: unknown): string | null {
     }
     return null;
 }
+
+/**
+ * Return a client that ran user SQL to the shared pool with a clean session:
+ * roll back anything left open (a bare BEGIN), then DISCARD ALL to drop SET /
+ * SET ROLE, temp tables and prepared statements. If that fails the
+ * connection is destroyed rather than reused.
+ */
+export async function releaseAfterUserQuery(client: PoolClient): Promise<void> {
+    try {
+        await client.query("ROLLBACK");
+        await client.query("DISCARD ALL");
+        client.release();
+    } catch (error) {
+        client.release(error instanceof Error ? error : true);
+    }
+}

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createPool } from "@/lib/db";
+import { getPool } from "@/lib/db";
 import { getDefaultEnvironment } from "@/lib/environments";
 
 const COLUMNS_CACHE_TTL_MS = 5 * 60_000; // 5 minutes
@@ -16,8 +16,6 @@ const columnsCache = new Map<
 >();
 
 export async function POST(req: NextRequest) {
-    let pool = null;
-
     try {
         const body = await req.json();
         const database: string = body?.database;
@@ -45,7 +43,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Create pool for the specific database
-        pool = createPool(environment, database);
+        const pool = getPool(environment, database);
 
         const result = await pool.query(`
             WITH primary_keys AS (
@@ -116,9 +114,5 @@ export async function POST(req: NextRequest) {
         const message =
             err instanceof Error ? err.message : "An unknown error occurred.";
         return NextResponse.json({ error: message }, { status: 500 });
-    } finally {
-        if (pool) {
-            await pool.end();
-        }
     }
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createPool } from "@/lib/db";
+import { getPool } from "@/lib/db";
 import { getDefaultEnvironment } from "@/lib/environments";
 
 const DEFAULT_PAGE_SIZE = 100;
@@ -39,8 +39,6 @@ function normalizeSortDirection(direction: unknown): SortDirection {
 }
 
 export async function POST(req: NextRequest) {
-    let pool = null;
-
     try {
         const body = await req.json();
         const environment: string =
@@ -71,8 +69,7 @@ export async function POST(req: NextRequest) {
         const quotedTable = quoteIdentifier(table);
         const qualifiedTableName = `${quotedSchema}.${quotedTable}`;
 
-        pool = createPool(environment, database);
-        await pool.query("SET statement_timeout = 30000");
+        const pool = getPool(environment, database);
 
         const columnsResult = await pool.query(
             `WITH primary_keys AS (
@@ -185,9 +182,5 @@ export async function POST(req: NextRequest) {
         const message =
             err instanceof Error ? err.message : "An unknown error occurred.";
         return NextResponse.json({ error: message }, { status: 500 });
-    } finally {
-        if (pool) {
-            await pool.end();
-        }
     }
 }
