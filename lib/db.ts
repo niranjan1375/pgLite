@@ -1,6 +1,8 @@
 import { Pool } from "pg";
 import { environments, getDefaultEnvironment } from "./environments";
 
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
+
 /**
  * Creates a new PostgreSQL connection pool for the specified environment and database.
  * No caching - each call creates a fresh pool. The Pool itself manages connection pooling internally.
@@ -29,9 +31,11 @@ export function createPool(
         user: envConfig.user,
         password: envConfig.password,
         database: database || envConfig.database,
-        ssl: {
-            rejectUnauthorized: false,
-        },
+        // Local Postgres usually has SSL off; forcing it fails with
+        // "The server does not support SSL connections".
+        ssl: LOCAL_HOSTS.has(envConfig.host)
+            ? false
+            : { rejectUnauthorized: false },
         // Connection pool settings
         max: 10, // Maximum 10 connections per pool
         idleTimeoutMillis: 30000,
