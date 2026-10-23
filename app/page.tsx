@@ -166,8 +166,12 @@ export default function Home() {
         database: string;
         readOnly: boolean;
         mode?: "standard" | "workspace";
+        variables?: Record<string, string>;
+        explain?: boolean;
     } | null>(null);
     const queryTabsRef = useRef<QueryTabsRef>(null);
+    const abortControllerRef = useRef<AbortController | null>(null);
+    const currentQueryIdRef = useRef<string | null>(null);
 
     const [databasesByEnv, setDatabasesByEnv] = useState<
         Record<string, string[]>
@@ -1005,6 +1009,14 @@ export default function Home() {
         ) => {
             if (!query.trim()) return;
 
+            const controller = new AbortController();
+            abortControllerRef.current = controller;
+            const queryId =
+                typeof crypto !== "undefined" && crypto.randomUUID
+                    ? crypto.randomUUID()
+                    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+            currentQueryIdRef.current = queryId;
+
             setLoading(true);
             setResult(null);
             setExplainResult(null);
@@ -1028,7 +1040,9 @@ export default function Home() {
                               sql: query,
                               variables: variables || {},
                               environment,
+                              readOnly,
                               explain,
+                              queryId,
                               timeoutMs: WORKSPACE_QUERY_TIMEOUT_MS,
                           }
                         : {
@@ -1037,12 +1051,14 @@ export default function Home() {
                               environment,
                               readOnly,
                               explain,
+                              queryId,
                           };
 
                 const res = await fetch(endpoint, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(requestBody),
+                    signal: controller.signal,
                 });
                 const data: QueryResult | QueryError | ExplainResult =
                     await res.json();
@@ -1092,9 +1108,20 @@ export default function Home() {
                     }
                     setLoading(false);
                 });
-            } catch {
-                setError("Failed to connect to the server.");
+            } catch (err) {
+                if (err instanceof DOMException && err.name === "AbortError") {
+                    // User cancelled — the fetch was aborted. Clear the spinner
+                    // quietly; the server-side query is cancelled separately.
+                    setError(null);
+                } else {
+                    setError("Failed to connect to the server.");
+                }
                 setLoading(false);
+            } finally {
+                if (abortControllerRef.current === controller) {
+                    abortControllerRef.current = null;
+                    currentQueryIdRef.current = null;
+                }
             }
         },
         [
@@ -1104,6 +1131,28 @@ export default function Home() {
             getPrimaryKeysForTable,
         ],
     );
+
+    // Cancel the in-flight query: abort the fetch (frees the client) and ask
+    // the server to pg_cancel_backend() the running query (frees the DB).
+    const cancelQuery = useCallback(() => {
+        abortControllerRef.current?.abort();
+        const queryId = currentQueryIdRef.current;
+        if (queryId) {
+            void fetch("/api/cancel-query", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ queryId }),
+            }).catch(() => {});
+        }
+    }, []);
+
+    // Abort any in-flight fetch if the page unmounts (avoids orphaned promises
+    // and setState-on-unmounted warnings).
+    useEffect(() => {
+        return () => {
+            abortControllerRef.current?.abort();
+        };
+    }, []);
 
     const runQuery = useCallback(
         async (
@@ -1117,8 +1166,29 @@ export default function Home() {
         ) => {
             if (!query.trim()) return;
 
-            // Workspace mode bypasses write checks and production warnings
             if (mode === "workspace") {
+                // Guard production writes in workspace mode too. `query` here is
+                // the variable-stripped SQL, so isWriteQuery sees the real verb.
+                // (Read-only writes are already blocked server-side.)
+                if (
+                    !readOnly &&
+                    !explain &&
+                    isWriteQuery(query) &&
+                    isProdEnvironment(environment)
+                ) {
+                    setPendingQuery({
+                        query,
+                        environment,
+                        database,
+                        readOnly,
+                        mode,
+                        variables,
+                        explain,
+                    });
+                    setShowProdWarning(true);
+                    return;
+                }
+
                 await executeQuery(
                     query,
                     environment,
@@ -1852,14 +1922,13 @@ export default function Home() {
 
                             {/* Run Button Strip */}
                             <div
-                                className="h-[34px] flex items-center justify-between px-3 border-t flex-shrink-0"
+                                className="h-[34px] flex items-center justify-between gap-3 px-3 border-t flex-shrink-0 overflow-x-auto"
                                 style={{
                                     background: "var(--panel)",
                                     borderColor: "var(--border)",
-                                    gap: "8px",
                                 }}
                             >
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 shrink-0">
                                     {activeTab?.mode === "workspace" && (
                                         <button
                                             onClick={handleSaveTemplate}
@@ -1885,7 +1954,7 @@ export default function Home() {
                                     </button>
                                 </div>
 
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 shrink-0">
                                     <button
                                         onClick={() => fetchTablesAndColumns(true)}
                                         disabled={loadingTables}
@@ -1922,6 +1991,16 @@ export default function Home() {
                                             "run ⌘↵"
                                         )}
                                     </button>
+                                    {loading && (
+                                        <button
+                                            onClick={cancelQuery}
+                                            className="cyber-btn cyber-btn-warn"
+                                            title="Cancel running query"
+                                            style={{ justifyContent: "center" }}
+                                        >
+                                            cancel
+                                        </button>
+                                    )}
                                     <button
                                         onClick={() => { void runCurrentTab(true); }}
                                         disabled={loading || !activeTab?.query.trim()}
@@ -2110,7 +2189,11 @@ export default function Home() {
             {showProdWarning && pendingQuery && (
                 <ConfirmDialog
                     title="Production Write Warning"
-                    message={`You are about to execute a write query in ${pendingQuery.environment.toUpperCase()} environment on database "${pendingQuery.database}". This operation cannot be undone. Are you sure you want to proceed?`}
+                    message={
+                        pendingQuery.mode === "workspace"
+                            ? `You are about to execute a write query in workspace mode against the ${pendingQuery.environment.toUpperCase()} environment. The target database is routed from the query's table prefix. This operation cannot be undone. Are you sure you want to proceed?`
+                            : `You are about to execute a write query in ${pendingQuery.environment.toUpperCase()} environment on database "${pendingQuery.database}". This operation cannot be undone. Are you sure you want to proceed?`
+                    }
                     confirmLabel="Execute"
                     cancelLabel="Cancel"
                     isDangerous={true}
@@ -2122,6 +2205,8 @@ export default function Home() {
                                 pendingQuery.database,
                                 pendingQuery.readOnly,
                                 pendingQuery.mode || "standard",
+                                pendingQuery.variables,
+                                pendingQuery.explain,
                             );
                         }
                         setShowProdWarning(false);

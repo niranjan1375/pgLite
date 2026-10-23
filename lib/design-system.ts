@@ -1,44 +1,33 @@
 /**
- * Cyberpunk Dev Tool Design System
- * Dark. Neon. Sharp. Developer-grade.
+ * pgLite design tokens.
+ *
+ * The source of truth for the *palette* is the [data-theme] blocks in
+ * app/globals.css. Anything color-related here returns CSS variable
+ * references (e.g. `var(--env-staging)`) so it follows the active theme —
+ * never hardcode a hex in a component.
  */
 
 export const colors = {
-    // Base
-    bg: "#080c12",
-    panel: "#0b0f18",
-    panelElevated: "#0f1520",
-    border: "#16202e",
-    borderBright: "#1e3048",
-    textPrimary: "#b8d0e8",
-    textMuted: "#3d5570",
+    bg: "var(--bg)",
+    panel: "var(--panel)",
+    panelElevated: "var(--panel-elevated)",
+    border: "var(--border)",
+    borderBright: "var(--border-bright)",
+    textPrimary: "var(--text-primary)",
+    textMuted: "var(--text-muted)",
 
-    // Primary Accent — Neon Green
-    accent: "#00ff88",
-    accentHover: "#00cc70",
+    accent: "var(--accent)",
+    accentHover: "var(--accent-hover)",
+    cyan: "var(--cyan)",
 
-    // Secondary — Cyan
-    cyan: "#00e5ff",
-
-    // Environment Colors
-    env: {
-        dev: "#00ff88",
-        loadtest: "#00ff88",
-        sandbox: "#00e5ff",
-        staging: "#ff9500",
-        "vegapay-uat-snapshot": "#ff2d55",
-        "vegapay-uat": "#ff2d55",
-        "unity-uat": "#ff2d55",
-    },
-
-    // Status
-    error: "#ff2d55",
-    warning: "#ff9500",
-    success: "#00ff88",
+    error: "var(--error)",
+    warning: "var(--warning)",
+    success: "var(--success)",
 } as const;
 
 export const typography = {
-    mono: '"SF Mono", "Monaco", "Inconsolata", "Fira Mono", "Droid Sans Mono", "Source Code Pro", monospace',
+    sans: "var(--font-sans)",
+    mono: "var(--font-mono)",
     xs: "11px",
     sm: "12px",
     base: "13px",
@@ -55,23 +44,37 @@ export const spacing = {
 } as const;
 
 export const layout = {
-    activityBar: "44px",
-    statusBar: "28px",
-    rowHeight: "32px",
+    activityBar: "46px",
+    statusBar: "26px",
+    rowHeight: "30px",
     borderWidth: "1px",
     tabsHeight: "36px",
     environmentStripHeight: "32px",
     editorHeight: "280px",
-    explorerWidth: "240px",
-    tableRowHeight: "41px",
-    tableOverscan: 5,
+    explorerWidth: "256px",
+    tableRowHeight: "32px",
+    tableOverscan: 12,
 } as const;
 
+/** Maps an environment id to the CSS variable that carries its color. */
+const ENV_COLOR_VAR: Record<string, string> = {
+    dev: "--env-dev",
+    loadtest: "--env-loadtest",
+    sandbox: "--env-sandbox",
+    staging: "--env-staging",
+    "vegapay-uat-snapshot": "--env-uat",
+    "vegapay-uat": "--env-uat",
+    "unity-uat": "--env-uat",
+};
+
+/** Returns a theme-aware CSS color reference for an environment. */
 export function getEnvironmentColor(envId: string): string {
-    return colors.env[envId as keyof typeof colors.env] || colors.accent;
+    const variable = ENV_COLOR_VAR[envId] ?? "--accent";
+    return `var(${variable})`;
 }
 
+/** Subtle, theme-aware ring for the active environment indicator. */
 export function getEnvironmentGlow(envId: string): string {
     const color = getEnvironmentColor(envId);
-    return `0 0 8px ${color}66, 0 0 20px ${color}22`;
+    return `0 0 0 3px color-mix(in srgb, ${color} 16%, transparent)`;
 }

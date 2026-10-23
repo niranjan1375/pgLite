@@ -1,7 +1,7 @@
 # P2-003: Frontend-Only Read Protection
 
 **Priority**: P2 (Medium)  
-**Status**: Open  
+**Status**: ◐ Partially fixed (2026-07-20) — `/api/workspace-query` now enforces the read-only toggle server-side (`isWriteQuery` check, mirroring `/api/query`), and workspace prod writes now trigger the confirmation dialog. **Still open:** the keyword check is bypassable by a leading comment or a data-modifying CTE (same limitation as standard mode), and there is still no connection-level read-only enforcement (`SET TRANSACTION READ ONLY` / a read-only DB role). See `docs/REPO_FINDINGS.md` gap G3.  
 **Owner**: Unassigned  
 **Pre-Ship**: Yes  
 **Created**: 2026-02-27  

@@ -332,7 +332,7 @@ export default function ContextEditor({
                             {rows.map((row) => (
                                 <tr key={row.rowId}>
                                     <td
-                                        className="sticky left-0 z-10 px-1 py-0.5 border-b border-r"
+                                        className="sticky left-0 z-10 px-1.5 py-1 border-b border-r"
                                         style={{
                                             background: "var(--panel)",
                                             borderColor: "var(--border)",
@@ -374,7 +374,7 @@ export default function ContextEditor({
                                                     )
                                                 }
                                                 placeholder="@name"
-                                                className="w-full text-[11px] px-1 py-1 rounded outline-none"
+                                                className="w-full text-[11px] px-2 py-1.5 rounded outline-none"
                                                 style={{
                                                     background: "var(--bg)",
                                                     color: "var(--accent)",
@@ -385,7 +385,7 @@ export default function ContextEditor({
                                     {envColumns.map((env) => (
                                         <td
                                             key={env.id}
-                                            className="px-1 py-0.5 border-b"
+                                            className="px-1.5 py-1 border-b"
                                             style={{
                                                 borderColor: "var(--border)",
                                                 background:
@@ -416,7 +416,7 @@ export default function ContextEditor({
                                                     )
                                                 }
                                                 placeholder="—"
-                                                className="w-full text-[11px] px-1 py-1 rounded outline-none"
+                                                className="w-full text-[11px] px-2 py-1.5 rounded outline-none"
                                                 style={{
                                                     background: "var(--bg)",
                                                     color: "var(--text-primary)",

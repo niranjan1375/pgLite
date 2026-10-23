@@ -1,7 +1,7 @@
 # P2-002: No EXPLAIN Analysis UI
 
 **Priority**: P2 (Medium)  
-**Status**: Open  
+**Status**: ✅ Fixed (verified in code 2026-06-26; tracker updated 2026-07-20) — `components/ExplainView.tsx` wired; EXPLAIN handled in both query routes  
 **Created**: 2026-02-27  
 **Effort**: 3 days
 

@@ -1,7 +1,7 @@
 # P0-005: Workspace Query Connection Leak
 
 **Priority**: P0 (Critical)  
-**Status**: Open  
+**Status**: ✅ Fixed (verified in code 2026-06-26; tracker updated 2026-07-20) — `pool.end()` in `finally` + `client.release()` in `/api/workspace-query`  
 **Owner**: Unassigned  
 **Pre-Ship**: Yes  
 **Created**: 2026-03-09  

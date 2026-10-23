@@ -1,7 +1,7 @@
 # P1-003: No Query Cancellation
 
 **Priority**: P1 (High)  
-**Status**: Open  
+**Status**: ✅ Fixed (2026-07-20) — client `AbortController` + Cancel button; server registers each query's backend PID (`/lib/query-registry.ts`) and `/api/cancel-query` issues `pg_cancel_backend()`. Verified against sandbox: a 20s query cancels in ~3s (killed on the DB, HTTP 499) in both standard and workspace modes.  
 **Owner**: Unassigned  
 **Pre-Ship**: Recommended  
 **Created**: 2026-02-27  

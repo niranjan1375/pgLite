@@ -232,6 +232,7 @@ export default function QueryHistory({
                                                         className="text-[11px] leading-5 truncate"
                                                         style={{
                                                             color: "var(--text-primary)",
+                                                            fontFamily: "var(--font-mono)",
                                                         }}
                                                     >
                                                         {preview ||

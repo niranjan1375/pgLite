@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import type { PoolClient } from "pg";
 import { createPool } from "@/lib/db";
 import { applyVariables, validateVariables } from "@/lib/templates";
+import { registerQuery, unregisterQuery } from "@/lib/query-registry";
+import { rateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 const MAX_ROWS = 10000;
@@ -47,6 +49,29 @@ function getReferencedVariables(sql: string): Set<string> {
         usedVariables.add(match[1]);
     }
     return usedVariables;
+}
+
+/**
+ * Detect if a query is a write operation. Mirrors the check in
+ * app/api/query/route.ts so the read-only toggle behaves identically in both
+ * standard and workspace modes.
+ */
+function isWriteQuery(query: string): boolean {
+    const upperQuery = query.trim().toUpperCase();
+    const writeKeywords = [
+        "INSERT",
+        "UPDATE",
+        "DELETE",
+        "DROP",
+        "CREATE",
+        "ALTER",
+        "TRUNCATE",
+        "REPLACE",
+        "MERGE",
+        "GRANT",
+        "REVOKE",
+    ];
+    return writeKeywords.some((keyword) => upperQuery.startsWith(keyword));
 }
 
 function isExplainableReadQuery(query: string): boolean {
@@ -102,6 +127,11 @@ function stripDatabasePrefix(sql: string, dbName: string): string {
 }
 
 export async function POST(request: NextRequest) {
+    const limited = rateLimit(request, { scope: "query" });
+    if (limited) {
+        return limited;
+    }
+
     let pool: ReturnType<typeof createPool> | null = null;
     let requestVariables: Record<string, string> = {};
     let appliedQueryTimeoutMs = DEFAULT_QUERY_TIMEOUT_MS;
@@ -109,6 +139,9 @@ export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
         const { sql, variables, environment, explain, timeoutMs } = body;
+        const readOnly: boolean = body?.readOnly || false;
+        const queryId: string | undefined =
+            typeof body?.queryId === "string" ? body.queryId : undefined;
         appliedQueryTimeoutMs = resolveQueryTimeoutMs(timeoutMs);
 
         // Validate required fields
@@ -187,6 +220,18 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        // Enforce read-only mode. Checked after variable substitution so the
+        // real leading verb is inspected (e.g. an "@id = 5" definition line
+        // doesn't mask an UPDATE that follows it).
+        if (readOnly && isWriteQuery(cleanedSql)) {
+            return NextResponse.json(
+                {
+                    error: "Write operations are disabled in read-only mode. Disable read-only protection to execute this query.",
+                },
+                { status: 403 },
+            );
+        }
+
         // Extract database prefixes from query
         const dbPrefixes = extractDatabasePrefixes(cleanedSql);
 
@@ -236,6 +281,20 @@ export async function POST(request: NextRequest) {
         }
 
         try {
+            if (queryId) {
+                const pidResult = await client.query(
+                    "SELECT pg_backend_pid() AS pid",
+                );
+                const pid = pidResult.rows[0]?.pid;
+                if (typeof pid === "number") {
+                    registerQuery(queryId, {
+                        pid,
+                        environment,
+                        database: routedDatabase,
+                    });
+                }
+            }
+
             // Set per-session timeout for this request.
             await client.query(
                 "SELECT set_config('statement_timeout', $1, false)",
@@ -301,6 +360,9 @@ export async function POST(request: NextRequest) {
                 routedDatabase,
             });
         } finally {
+            if (queryId) {
+                unregisterQuery(queryId);
+            }
             client.release();
         }
     } catch (error: unknown) {
@@ -309,6 +371,14 @@ export async function POST(request: NextRequest) {
         if (error instanceof Error) {
             const pgError = error as Error & { code?: string };
             if (pgError.code === "57014") {
+                // 57014 covers both statement_timeout and pg_cancel_backend.
+                // Distinguish by message so a user cancel isn't mislabeled.
+                if (/user request/i.test(pgError.message)) {
+                    return NextResponse.json(
+                        { error: "Query cancelled." },
+                        { status: 499 },
+                    );
+                }
                 const timeoutSeconds = Math.max(
                     1,
                     Math.round(appliedQueryTimeoutMs / 1000),

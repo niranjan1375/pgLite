@@ -1,7 +1,7 @@
 # P0-003: No Query Timeout
 
 **Priority**: P0 (Critical)  
-**Status**: Open  
+**Status**: ✅ Fixed (verified in code 2026-06-26; tracker updated 2026-07-20) — `set_config('statement_timeout')` set per request in both `/api/query` and `/api/workspace-query`  
 **Owner**: Unassigned  
 **Pre-Ship**: Yes  
 **Created**: 2026-02-27  

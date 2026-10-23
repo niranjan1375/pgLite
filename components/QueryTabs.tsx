@@ -479,40 +479,50 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
                         key={tab.id}
                         onClick={() => setActiveTabId(tab.id)}
                         onDoubleClick={() => renameTab(tab.id)}
-                        className="relative flex items-center gap-1.5 h-full text-[11px] uppercase tracking-wide transition-all shrink-0"
+                        className="relative flex items-center gap-1.5 h-full text-[12px] transition-all shrink-0"
                         style={{
-                            padding: "0 14px",
+                            padding: "0 12px",
+                            maxWidth: "190px",
+                            overflow: "hidden",
                             color: isActive ? envColor : "var(--text-muted)",
-                            background: isActive ? "var(--bg)" : "transparent",
+                            background: isActive
+                                ? "var(--panel)"
+                                : "transparent",
                             borderRight: "1px solid var(--border)",
-                            borderBottom: isActive ? `2px solid ${envColor}` : "2px solid transparent",
-                            boxShadow: isActive ? `0 -1px 0 0 ${envColor}40 inset, 0 4px 12px ${envColor}15` : "none",
+                            borderBottom: isActive
+                                ? `2px solid ${envColor}`
+                                : "2px solid transparent",
                         }}
                         title="Double-click to rename"
                     >
+                        <span
+                            style={{
+                                width: 7,
+                                height: 7,
+                                borderRadius: "50%",
+                                background: envColor,
+                                flexShrink: 0,
+                            }}
+                        />
+                        <span className="truncate">{displayName}</span>
                         {tab.readOnly && (
                             <span
-                                className="px-1 text-[9px] border"
-                                style={{
-                                    color: "var(--warning)",
-                                    borderColor: "rgba(255,149,0,0.4)",
-                                }}
+                                className="text-[9px] tracking-wide"
+                                style={{ color: "var(--text-dim)", flexShrink: 0 }}
+                                title="Read-only"
                             >
                                 RO
                             </span>
                         )}
                         {tab.mode === "workspace" && (
                             <span
-                                className="px-1 text-[9px] border"
-                                style={{
-                                    color: "var(--accent)",
-                                    borderColor: "rgba(0,255,136,0.4)",
-                                }}
+                                className="text-[9px] tracking-wide"
+                                style={{ color: "var(--text-dim)", flexShrink: 0 }}
+                                title="Workspace mode"
                             >
                                 WS
                             </span>
                         )}
-                        <span>{displayName}</span>
                         {tabs.length > 1 && (
                             <span
                                 onClick={(e) => {
@@ -536,7 +546,10 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
             <button
                 onClick={addTab}
                 className="flex items-center justify-center h-full px-3 text-[16px] transition-all hover:bg-white/5 shrink-0"
-                style={{ color: "var(--text-muted)", borderRight: "1px solid var(--border)" }}
+                style={{
+                    color: "var(--text-muted)",
+                    borderRight: "1px solid var(--border)",
+                }}
                 title="New standard tab (⌘T)"
             >
                 +
@@ -553,10 +566,12 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
                 }}
                 title="New workspace tab — auto-routes to DB based on table prefix"
             >
-                <span style={{ color: "var(--accent)", fontSize: "8px" }}>◆</span>
+                <span style={{ color: "var(--accent)", fontSize: "8px" }}>
+                    ◆
+                </span>
                 WS
             </button>
-
+            {/* 
             <button
                 onClick={formatActiveTabQuery}
                 className="flex items-center h-full px-3 text-[10px] uppercase tracking-widest font-bold transition-all hover:bg-white/5 shrink-0"
@@ -564,7 +579,7 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
                 title="Format SQL (prettify)"
             >
                 FMT
-            </button>
+            </button> */}
         </div>
     );
 });

@@ -135,7 +135,7 @@ export default function ResultsTable({
     }, []);
 
     // Virtual scrolling constants
-    const ROW_HEIGHT = density === "compact" ? 32 : 41;
+    const ROW_HEIGHT = density === "compact" ? 26 : 32;
     const OVERSCAN = 15; // Extra rows to render above/below viewport for smooth scrolling
 
     // Derive column widths with defaults
@@ -496,7 +496,7 @@ export default function ResultsTable({
                 </div>
 
                 {/* Main message */}
-                <div className="px-4 py-3" style={{ color: "#e8a0aa", fontFamily: "var(--font-mono)", lineHeight: 1.6 }}>
+                <div className="px-4 py-3" style={{ color: "var(--error)", fontFamily: "var(--font-mono)", lineHeight: 1.6 }}>
                     {cleanMessage}
                 </div>
 
@@ -509,7 +509,7 @@ export default function ResultsTable({
                         {detail && (
                             <div className="flex gap-2 pt-2">
                                 <span className="text-[10px] uppercase tracking-wider flex-shrink-0 pt-px" style={{ color: "rgba(255,45,85,0.5)", width: 48 }}>detail</span>
-                                <span className="text-[11px]" style={{ color: "#7a8a90" }}>{detail}</span>
+                                <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>{detail}</span>
                             </div>
                         )}
                         {hint && (
@@ -533,7 +533,6 @@ export default function ResultsTable({
     if (!result) {
         return (
             <EmptyState
-                icon="⚡"
                 title="No query executed"
                 description="Write a SQL query above and press ⌘+Enter to execute"
             />
@@ -563,14 +562,14 @@ export default function ResultsTable({
         <div className="flex flex-col h-full">
             {/* Results Header - UPPERCASE META */}
             <div
-                className="h-[32px] flex items-center justify-between px-3 text-[11px] uppercase tracking-wide border-b"
+                className="h-[32px] flex items-center justify-between gap-3 px-3 text-[11px] uppercase tracking-wide border-b overflow-x-auto"
                 style={{
                     background: "var(--panel)",
                     borderColor: "var(--border)",
                     color: "var(--text-muted)",
                 }}
             >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 min-w-0 whitespace-nowrap">
                     <span>
                         RESULTS ({totalResultRows.toLocaleString()} ROWS)
                     </span>
@@ -641,7 +640,7 @@ export default function ResultsTable({
                         </>
                     )}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                     {tableView && onRefreshTableView && (
                         <button
                             onClick={onRefreshTableView}
@@ -662,7 +661,7 @@ export default function ResultsTable({
                             borderColor: "var(--border)",
                             color: "var(--text-muted)",
                         }}
-                        title={`Density: ${density === "default" ? "41px" : "32px"} rows`}
+                        title={`Density: ${density === "default" ? "32px" : "26px"} rows`}
                     >
                         {density === "default" ? "COMPACT" : "DEFAULT"}
                     </button>
@@ -849,7 +848,7 @@ export default function ResultsTable({
                                 background: "var(--panel-elevated)",
                                 borderRight: "1px solid var(--grid-line)",
                                 borderBottom: "1px solid var(--border-bright)",
-                                color: "#2a3f50",
+                                color: "var(--text-dim)",
                             }}
                         >
                             #
@@ -864,7 +863,7 @@ export default function ResultsTable({
                                 background: "var(--panel-elevated)",
                                 borderRight: "1px solid var(--grid-line)",
                                 borderBottom: "1px solid var(--border-bright)",
-                                color: "#6a8aaa",
+                                color: "var(--text-muted)",
                             }}
                         >
                             Actions
@@ -890,28 +889,26 @@ export default function ResultsTable({
                                     onContextMenu={(e) => { e.preventDefault(); toggleColumnVisibility(field); }}
                                 >
                                     <div
-                                        className="flex flex-col items-center justify-center gap-0.5 cursor-pointer hover:opacity-80 transition-opacity px-3 py-1.5"
+                                        className="flex items-baseline gap-2 cursor-pointer hover:opacity-80 transition-opacity px-3 py-1.5"
                                         onClick={() => handleSort(field)}
                                         title={isSortDisabled ? "Sort disabled — use ORDER BY" : "Click to sort · right-click to hide"}
                                         style={{ opacity: isSortDisabled ? 0.4 : 1 }}
                                     >
-                                        <div className="flex items-center gap-1">
-                                            <span
-                                                className="truncate text-[10px] tracking-widest uppercase font-medium"
-                                                style={{ color: isActiveSort ? "var(--cyan)" : "#6a8aaa" }}
-                                            >
-                                                {field}
+                                        <span
+                                            className="truncate text-[11px] font-semibold tracking-wide"
+                                            style={{ color: isActiveSort ? "var(--accent)" : "var(--text-muted)" }}
+                                        >
+                                            {field}
+                                        </span>
+                                        {isActiveSort && (
+                                            <span style={{ color: "var(--accent)", flexShrink: 0, fontSize: 10 }}>
+                                                {activeSortDirection === "asc" ? "↑" : "↓"}
                                             </span>
-                                            {isActiveSort && (
-                                                <span style={{ color: "var(--cyan)", flexShrink: 0, fontSize: 10 }}>
-                                                    {activeSortDirection === "asc" ? "↑" : "↓"}
-                                                </span>
-                                            )}
-                                        </div>
+                                        )}
                                         {colType && (
                                             <span
-                                                className="text-[9px] tracking-wide"
-                                                style={{ color: "#1e3a50" }}
+                                                className="text-[10px] ml-auto"
+                                                style={{ color: "var(--text-dim)" }}
                                             >
                                                 {colType}
                                             </span>
@@ -957,7 +954,7 @@ export default function ResultsTable({
                                             width: ROW_NUM_WIDTH,
                                             minWidth: ROW_NUM_WIDTH,
                                             fontSize: 10,
-                                            color: "#1e3048",
+                                            color: "var(--text-dim)",
                                             background: "inherit",
                                             borderRight: "1px solid #1a2840",
                                             borderBottom: "1px solid #1a2840",
@@ -1028,8 +1025,8 @@ export default function ResultsTable({
                                                     width: colW,
                                                     minWidth: colW,
                                                     height: "100%",
-                                                    borderBottom: "1px solid #1a2840",
-                                                    borderRight: isLastField ? "none" : "1px solid #1a2840",
+                                                    borderBottom: "1px solid var(--grid-line)",
+                                                    borderRight: isLastField ? "none" : "1px solid var(--grid-line)",
                                                 }}
                                             >
                                                 {/* Cell text with truncation fade */}
@@ -1038,8 +1035,9 @@ export default function ResultsTable({
                                                     style={{ height: "100%", display: "flex", alignItems: "center" }}
                                                 >
                                                     <span
-                                                        className="truncate w-full text-center cursor-default"
+                                                        className="truncate w-full text-left cursor-default"
                                                         style={{
+                                                            fontFamily: "var(--font-mono)",
                                                             color: isNull ? "var(--text-dim)" : "var(--text-primary)",
                                                             fontStyle: isNull ? "italic" : "normal",
                                                         }}
@@ -1059,7 +1057,7 @@ export default function ResultsTable({
                                                         >
                                                             <svg
                                                                 width="10" height="10" viewBox="0 0 10 10" fill="none"
-                                                                stroke="#2a3f50" strokeWidth="1.2" strokeLinecap="round"
+                                                                stroke="var(--text-dim)" strokeWidth="1.2" strokeLinecap="round"
                                                                 style={{ marginLeft: "auto" }}
                                                             >
                                                                 <path d="M1 5h8M6 2l3 3-3 3" />

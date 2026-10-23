@@ -1,1 +1,1 @@
-export { default as RefreshIcon } from "./RefereshIcon";
+export { default as RefreshIcon } from "./RefreshIcon";
