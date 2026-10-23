@@ -14,6 +14,7 @@
         "@types/pg": "^8.16.0",
         "next": "16.1.6",
         "pg": "^8.19.0",
+        "pg-cursor": "2.18.0",
         "react": "19.2.3",
         "react-dom": "19.2.3",
         "sql-formatter": "^15.7.2"
@@ -21,6 +22,7 @@
     "devDependencies": {
         "@tailwindcss/postcss": "^4",
         "@types/node": "^20",
+        "@types/pg-cursor": "2.7.2",
         "@types/react": "^19",
         "@types/react-dom": "^19",
         "eslint": "^9",

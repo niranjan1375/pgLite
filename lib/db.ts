@@ -25,7 +25,7 @@ const RAW_DATETIME_ARRAY_OIDS = new Set([
 ]);
 const TEXT_ARRAY_OID: number = 1009; // text[]: parse elements, keep them as strings
 
-const typeParsers: CustomTypesConfig = {
+export const typeParsers: CustomTypesConfig = {
     getTypeParser: ((oid: number, format?: "text" | "binary") => {
         if (RAW_DATETIME_OIDS.has(oid)) {
             return (value: string) => value;

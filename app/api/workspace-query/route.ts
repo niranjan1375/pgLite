@@ -284,6 +284,7 @@ export async function POST(request: NextRequest) {
             // EXPLAIN ANALYZE executes the statement, so it always runs read-only.
             const result = await runUserQuery(client, finalQuery, {
                 readOnly: readOnly || explain === true,
+                maxRows: MAX_ROWS,
             });
 
             if (explain === true) {
@@ -305,18 +306,14 @@ export async function POST(request: NextRequest) {
 
             // Check if this is a data-returning query
             if (result.fields.length > 0) {
-                // Cap the result set, but truncate-and-flag rather than reject
-                // so the user still sees the first MAX_ROWS rows.
-                const truncated = result.rows.length > MAX_ROWS;
-                const rows = truncated
-                    ? result.rows.slice(0, MAX_ROWS)
-                    : result.rows;
+                // runUserQuery caps rows at MAX_ROWS and flags truncation.
+                const { rows, truncated } = result;
 
                 return NextResponse.json({
                     rows,
                     rowCount: rows.length,
                     command: result.command,
-                    totalRows: result.rows.length,
+                    totalRows: truncated ? undefined : rows.length,
                     fields: result.fields.map((f) => f.name),
                     fieldTypes: result.fields.map((f) => f.dataTypeID),
                     truncated,

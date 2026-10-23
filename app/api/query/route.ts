@@ -95,6 +95,7 @@ export async function POST(req: NextRequest) {
             // EXPLAIN ANALYZE executes the statement, so it always runs read-only.
             const result = await runUserQuery(client, finalQuery, {
                 readOnly: readOnly || explain,
+                maxRows: MAX_ROWS,
             });
             const executionTime = Date.now() - start;
 
@@ -114,13 +115,9 @@ export async function POST(req: NextRequest) {
                 });
             }
 
-            // Cap the result set to keep payload/render bounded. Truncate and
-            // flag rather than rejecting, so the user still sees the first
-            // MAX_ROWS rows.
-            const truncated = result.rows.length > MAX_ROWS;
-            const rows = truncated
-                ? result.rows.slice(0, MAX_ROWS)
-                : result.rows;
+            // runUserQuery caps rows at MAX_ROWS (streaming single SELECTs)
+            // and flags truncation; the full count isn't known then.
+            const { rows, truncated } = result;
             // Statements without a result set (UPDATE/DELETE/INSERT without
             // RETURNING, DDL) report the rows they affected instead.
             const returnsRows = result.fields.length > 0;
@@ -129,7 +126,7 @@ export async function POST(req: NextRequest) {
                 rows,
                 rowCount: returnsRows ? rows.length : (result.rowCount ?? 0),
                 command: result.command,
-                totalRows: result.rows.length,
+                totalRows: truncated ? undefined : rows.length,
                 fields: result.fields.map((f) => f.name),
                 fieldTypes: result.fields.map((f) => f.dataTypeID),
                 truncated,

@@ -8,6 +8,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 pgLite is a minimal, full-stack PostgreSQL web admin tool built for engineers and analysts. It provides a modern SQL execution interface with multi-environment support, query history, saved queries, workspace mode (cross-database queries), and SQL templates with variable substitution.
 
+## Principles
+
+- **Fast and lean beats feature-rich.** Every change should make day-to-day
+  DB work quicker or safer. Don't add features (or dependencies) that don't
+  clearly pay for themselves; a big feature list that slows the tool down is
+  explicitly not wanted.
+- Functionality first; UI polish and the `page.tsx` split come later.
+
 ## Tech Stack
 
 - **Frontend:** React 19, Next.js 16 (App Router), TypeScript, TailwindCSS 4
@@ -73,7 +81,7 @@ Seven environments configured: `loadtest`, `sandbox`, `staging`, `vegapay-uat-sn
 - **Caching:** Schema/table/column metadata cached in-memory (5–60s TTL). Pass `forceRefresh=true` to bypass.
 - **Template variables:** `@varName = value` syntax at top of SQL, substituted server-side before execution.
 - **Workspace mode:** Prefix queries with `dbname.` to route to a specific database; regex-extracts DB name and switches pool.
-- **Safety:** Read-only is enforced by Postgres, not by parsing: `lib/run-query.ts` runs the statement in `BEGIN READ ONLY … ROLLBACK` over the extended protocol (one statement only), in both query routes. EXPLAIN always runs read-only. New tabs default to read-only. `lib/sql-safety.ts` (`scanStatements`, `isWriteQuery`) is a UX heuristic only — it drives the production-write confirm, whose envs come from the `production` flag in `/api/environments`. Unknown environment ids are an error, never a fallback. Row delete is only offered in the table viewer and only by primary key. Row limit is 10K: large result sets are **truncated and flagged** (`truncated`/`totalRows`), not rejected.
+- **Safety:** Read-only is enforced by Postgres, not by parsing: `lib/run-query.ts` runs the statement in `BEGIN READ ONLY … ROLLBACK` over the extended protocol (one statement only), in both query routes. EXPLAIN always runs read-only. New tabs default to read-only. `lib/sql-safety.ts` (`scanStatements`, `isWriteQuery`) is a UX heuristic only — it drives the production-write confirm, whose envs come from the `production` flag in `/api/environments`. Unknown environment ids are an error, never a fallback. Row delete is only offered in the table viewer and only by primary key. Row limit is 10K: a single SELECT/WITH/VALUES/TABLE statement is read through `pg-cursor` and stops after 10,001 rows, so an unbounded SELECT never loads the whole table; results are **truncated and flagged** (`truncated`; `totalRows` is omitted when unknown), not rejected. DML responses carry `command` and the affected `rowCount`.
 - **Virtual scrolling:** `ResultsTable` renders only visible rows; overscan = 15 rows.
 - **Dynamic imports:** `SQLEditor` and `QueryTabs` are lazy-loaded (Monaco requires CSR).
 
