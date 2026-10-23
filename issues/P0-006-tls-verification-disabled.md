@@ -1,7 +1,7 @@
 # P0-006: TLS Certificate Verification Disabled
 
 **Priority**: P0 (Critical)  
-**Status**: Open  
+**Status**: ✅ Fixed (2026-10-23, branch `fix/tls-verify`)  
 **Owner**: Unassigned  
 **Pre-Ship**: Yes  
 **Created**: 2026-03-09  
@@ -41,6 +41,13 @@ This disables server certificate verification for database TLS.
 
 ## Verification
 
-- [ ] TLS connections succeed with valid CA.
-- [ ] Invalid cert chain is rejected.
-- [ ] No environment uses `rejectUnauthorized: false` in production.
+- [x] TLS connections succeed with valid CA (Azure loadtest/sandbox/staging verify with Node's CAs).
+- [x] Invalid cert chain is rejected (wrong `sslCa` → `SELF_SIGNED_CERT_IN_CHAIN` + fix hint).
+- [x] No environment uses `rejectUnauthorized: false` unless it opts in with `"ssl": "require"`, which logs a warning for production envs.
+
+## Resolution
+
+Per-environment `ssl` (`verify` | `require` | `disable`) and `sslCa` in the
+credentials file — see `lib/tls.ts` and `docs/CREDENTIALS_FILE_FORMAT.md`.
+Remote hosts verify by default; an unreadable `sslCa` fails that environment
+with a clear error.

@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { SSL_MODES, type SslMode } from "./tls";
 
 export interface Environment {
     id?: string;
@@ -12,6 +13,10 @@ export interface Environment {
     requiresVPN?: boolean;
     /** Explicit production flag; when omitted it is inferred (see isProductionEnvironment). */
     production?: boolean;
+    /** TLS mode; defaults to "verify", or "disable" for localhost (see lib/tls.ts). */
+    ssl?: SslMode;
+    /** PEM CA bundle path for "verify", e.g. the AWS RDS global bundle. */
+    sslCa?: string;
 }
 
 export interface EnvironmentSummary {
@@ -31,6 +36,8 @@ interface EnvironmentConfigInput {
     database: string;
     requiresVPN?: boolean;
     production?: boolean;
+    ssl?: string;
+    sslCa?: string;
 }
 
 interface CredentialsFileShape {
@@ -140,29 +147,7 @@ function parseDynamicEnvironments(): Record<string, Environment> | null {
                   { ...value, id },
               ]);
 
-        const output: Record<string, Environment> = {};
-
-        for (const [id, item] of entries) {
-            if (!id || !item?.host || !item?.user || !item?.database) {
-                continue;
-            }
-
-            output[id] = {
-                id,
-                name: item.name || id,
-                host: item.host,
-                port: item.port ?? 5432,
-                user: item.user,
-                password: item.password || "",
-                database: item.database,
-                requiresVPN: Boolean(item.requiresVPN),
-                production:
-                    typeof item.production === "boolean"
-                        ? item.production
-                        : undefined,
-            };
-        }
-
+        const output = parseFromEntries(entries);
         return Object.keys(output).length > 0 ? output : null;
     } catch (error) {
         console.error(
@@ -196,10 +181,26 @@ function parseFromEntries(
                 typeof item.production === "boolean"
                     ? item.production
                     : undefined,
+            ssl: parseSslMode(id, item.ssl),
+            sslCa: item.sslCa || undefined,
         };
     }
 
     return output;
+}
+
+// An unrecognised value falls back to the safe default rather than to no TLS.
+function parseSslMode(id: string, value: string | undefined): SslMode | undefined {
+    if (value === undefined) {
+        return undefined;
+    }
+    if ((SSL_MODES as readonly string[]).includes(value)) {
+        return value as SslMode;
+    }
+    console.error(
+        `Environment "${id}": unknown ssl "${value}" (expected ${SSL_MODES.join(" | ")}); using the default.`,
+    );
+    return undefined;
 }
 
 function parseCredentialsFile(): Record<string, Environment> | null {

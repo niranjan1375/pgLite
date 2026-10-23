@@ -1,7 +1,30 @@
-import { Pool, types as pgTypes, type CustomTypesConfig } from "pg";
-import { environments, getDefaultEnvironment } from "./environments";
+import { readFileSync } from "node:fs";
+import {
+    Client,
+    Pool,
+    types as pgTypes,
+    type CustomTypesConfig,
+} from "pg";
+import {
+    environments,
+    getDefaultEnvironment,
+    isProductionEnvironment,
+} from "./environments";
+import { resolveSslMode, sslOptions, withTlsHint } from "./tls";
 
-const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
+// pg-pool connects clients with a callback; adding the hint here means every
+// route's error explains a certificate failure and how to fix it.
+class HintingClient extends Client {
+    override connect(callback?: (err: Error) => void): Promise<void> {
+        const connected = super.connect().catch((error: unknown) => {
+            throw withTlsHint(error);
+        });
+        if (callback) {
+            connected.then(() => callback(null as unknown as Error), callback);
+        }
+        return connected;
+    }
+}
 
 // Date/time values are returned exactly as Postgres prints them. The default
 // parsers turn `timestamp` (no time zone) into a JS Date in the Node
@@ -74,17 +97,26 @@ export function getPool(
         return existing;
     }
 
+    const ssl = sslOptions(environment, envConfig, (filePath) =>
+        readFileSync(filePath, "utf8"),
+    );
+    if (
+        resolveSslMode(envConfig) !== "verify" &&
+        isProductionEnvironment(environment, envConfig)
+    ) {
+        console.warn(
+            `Environment "${environment}" is production but its TLS certificate is not verified (ssl: "${resolveSslMode(envConfig)}").`,
+        );
+    }
+
     const pool = new Pool({
+        Client: HintingClient,
         host: envConfig.host,
         port: envConfig.port,
         user: envConfig.user,
         password: envConfig.password,
         database: targetDatabase,
-        // Local Postgres usually has SSL off; forcing it fails with
-        // "The server does not support SSL connections".
-        ssl: LOCAL_HOSTS.has(envConfig.host)
-            ? false
-            : { rejectUnauthorized: false },
+        ssl,
         // Session default for every connection (metadata routes included);
         // query routes override it per request, and DISCARD ALL restores it.
         statement_timeout: DEFAULT_STATEMENT_TIMEOUT_MS,

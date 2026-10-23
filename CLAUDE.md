@@ -36,7 +36,8 @@ pgLite is a minimal, full-stack PostgreSQL web admin tool built for engineers an
 | `app/api/columns/route.ts` | Column metadata including primary keys |
 | `app/api/tables/route.ts` | List tables per database (5m in-memory cache) |
 | `app/api/ping/route.ts` | Health check / latency measurement |
-| `lib/db.ts` | Pool creation — fresh pool per request, no singleton |
+| `lib/db.ts` | Shared pool per environment + database |
+| `lib/tls.ts` | Per-environment TLS mode / CA bundle, certificate-error hint |
 | `lib/environments.ts` | Multi-environment config loading (credentials.json → env var → legacy env vars) |
 | `lib/templates.ts` | SQL template parsing, variable substitution, file storage |
 | `lib/workspace-utils.ts` | Frontend: variable extraction/validation, selection-vs-statement logic |
@@ -77,7 +78,8 @@ Seven environments configured: `loadtest`, `sandbox`, `staging`, `vegapay-uat-sn
 
 ## Architecture Notes
 
-- **Connection pooling:** `createPool()` in `lib/db.ts` creates a fresh pool per request (max 10 connections, 30s idle timeout, SSL enabled). Always close in `finally`.
+- **Connection pooling:** `getPool()` in `lib/db.ts` reuses one pool per environment + database (max 10 connections, 30s idle timeout). Never `end()` it.
+- **TLS:** per-environment `ssl` (`verify` default for remote hosts, `require`, `disable` default for localhost) and `sslCa` (PEM bundle path, needed for AWS RDS) — `lib/tls.ts`. Certificate failures get a how-to-fix hint appended via the pool's `HintingClient`.
 - **Caching:** Schema/table/column metadata cached in-memory (5–60s TTL). Pass `forceRefresh=true` to bypass.
 - **Template variables:** `@varName = value` syntax at top of SQL, substituted server-side before execution.
 - **Workspace mode:** Prefix queries with `dbname.` to route to a specific database; regex-extracts DB name and switches pool.
@@ -94,8 +96,7 @@ statuses, gaps, and the next-task backlog (snapshot 2026-06-26, branch
 - **The `issues/` tracker is stale.** Re-verified against code: P0-003 (timeout),
   P0-005 (workspace pool leak), P1-005 (workspace row cap), and P2-002 (EXPLAIN
   UI) are all **already fixed** despite being marked Open there.
-- **Still genuinely open:** P0-004 (no API auth), P0-006 (TLS verify disabled),
-  P2-003 / workspace write protection (gap G3), P1-003 (query cancellation),
+- **Still genuinely open:** P0-004 (no API auth), P2-003 / workspace write protection (gap G3), P1-003 (query cancellation),
   P1-004 (rate limiting), P1-002 (observability).
 - **Dead code:** `components/EnvironmentSelector.tsx` is unused (superseded by
   `EnvironmentStrip.tsx`).

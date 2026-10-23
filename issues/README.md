@@ -48,7 +48,7 @@
 ### [P0-006] TLS Certificate Verification Disabled
 
 **File**: `issues/P0-006-tls-verification-disabled.md`  
-**Status**: Open  
+**Status**: ✅ Fixed (2026-10-23)  
 **Risk**: MITM exposure and compliance risk  
 **Effort**: 2-4 hours
 
@@ -137,10 +137,10 @@
 _Last synced 2026-07-20 against `docs/REPO_FINDINGS.md` + code._
 
 - **Total Issues**: 16
-- **P0 (Critical)**: 2 open (P0-004 auth, P0-006 TLS), 4 fixed
+- **P0 (Critical)**: 1 open (P0-004 auth), 5 fixed
 - **P1 (High)**: 6 open, 1 fixed (P1-005)
 - **P2 (Medium)**: 1 open (P2-001, deferred), 1 fixed (P2-002), 1 partially fixed (P2-003)
-- **Still genuinely open**: P0-004, P0-006, P1-001, P1-002, P1-003, P1-004, P1-006, P1-007, P2-001
+- **Still genuinely open**: P0-004, P1-001, P1-002, P1-003, P1-004, P1-006, P1-007, P2-001
 
 ---
 
