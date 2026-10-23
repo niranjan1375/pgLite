@@ -533,7 +533,6 @@ export default function ResultsTable({
     if (!result) {
         return (
             <EmptyState
-                icon="⚡"
                 title="No query executed"
                 description="Write a SQL query above and press ⌘+Enter to execute"
             />
