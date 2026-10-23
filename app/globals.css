@@ -172,22 +172,22 @@
     --grid-line: #2a313b;
 }
 
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-body {
-    background: var(--bg);
-    color: var(--text-primary);
-    /* Sans for chrome; data cells / SQL / the editor opt into mono explicitly. */
-    font-family: var(--font-sans);
-    font-size: 12px;
-    line-height: 1.5;
-    overflow: hidden;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+/* Element defaults live in the base layer: unlayered rules beat every
+   Tailwind utility (those are in @layer utilities), which silently zeroed
+   classes like px-3 / ml-auto / text-[11px]. Preflight already resets
+   margin, padding and box-sizing. */
+@layer base {
+    body {
+        background: var(--bg);
+        color: var(--text-primary);
+        /* Sans for chrome; data cells / SQL / the editor opt into mono explicitly. */
+        font-family: var(--font-sans);
+        font-size: 12px;
+        line-height: 1.5;
+        overflow: hidden;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
 }
 
 /* Reusable data/code surface */
@@ -226,12 +226,14 @@ body {
 }
 
 /* Form controls inherit the surrounding font (sans chrome / mono data) */
-input,
-textarea,
-select,
-button {
-    font-family: inherit;
-    font-size: inherit;
+@layer base {
+    input,
+    textarea,
+    select,
+    button {
+        font-family: inherit;
+        font-size: inherit;
+    }
 }
 
 /* ─── Monaco Editor Glyph — Run button in gutter ─────────────────────── */

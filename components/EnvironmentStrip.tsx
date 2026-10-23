@@ -8,6 +8,10 @@ interface EnvironmentStripProps {
     environment: string;
     database: string;
     readOnly: boolean;
+    /** Server-decided (lib/environments.ts), not guessed from the name. */
+    production: boolean;
+    /** Workspace tabs route by table prefix, so there is no database to pick. */
+    workspaceMode: boolean;
     availableEnvironments: string[];
     availableDatabases: string[];
     onEnvironmentChange: (env: string) => void;
@@ -71,6 +75,8 @@ export default function EnvironmentStrip({
     environment,
     database,
     readOnly,
+    production,
+    workspaceMode,
     availableEnvironments,
     availableDatabases,
     onEnvironmentChange,
@@ -83,7 +89,8 @@ export default function EnvironmentStrip({
     const dbMenuRef = useRef<HTMLDivElement>(null);
 
     const envColor = getEnvironmentColor(environment);
-    const isProd = environment.includes("uat") || environment.includes("prod");
+    // Writes enabled on production: the whole strip says so, not just a label.
+    const prodWrites = production && !readOnly;
 
     useEscapeKey(() => {
         setShowEnvMenu(false);
@@ -108,10 +115,15 @@ export default function EnvironmentStrip({
             className="flex items-center gap-0 border-b flex-shrink-0 text-[11px] tracking-wide"
             style={{
                 height: "32px",
-                background: "var(--panel)",
-                borderColor: isProd
-                    ? `color-mix(in srgb, ${envColor} 19%, transparent)`
-                    : "var(--border)",
+                background: prodWrites
+                    ? "color-mix(in srgb, var(--error) 14%, var(--panel))"
+                    : "var(--panel)",
+                borderColor: prodWrites
+                    ? "var(--error)"
+                    : production
+                      ? `color-mix(in srgb, ${envColor} 19%, transparent)`
+                      : "var(--border)",
+                boxShadow: prodWrites ? "inset 3px 0 0 var(--error)" : undefined,
             }}
         >
             {/* Environment selector */}
@@ -155,7 +167,19 @@ export default function EnvironmentStrip({
                 )}
             </div>
 
-            {/* Database selector */}
+            {/* Database selector (workspace tabs route by table prefix instead) */}
+            {workspaceMode ? (
+                <span
+                    className="flex items-center h-full px-3"
+                    style={{
+                        color: "var(--text-dim)",
+                        borderRight: "1px solid var(--border)",
+                    }}
+                    title="Workspace mode routes each query by its db. prefix"
+                >
+                    database: auto (from db. prefix)
+                </span>
+            ) : (
             <div className="relative h-full" ref={dbMenuRef}>
                 <button
                     onClick={() => { setShowDbMenu(!showDbMenu); setShowEnvMenu(false); }}
@@ -181,6 +205,7 @@ export default function EnvironmentStrip({
                     />
                 )}
             </div>
+            )}
 
             {/* Read-only indicator (non-interactive label) */}
             {readOnly && (
@@ -196,12 +221,25 @@ export default function EnvironmentStrip({
                 </span>
             )}
 
+            {prodWrites && (
+                <span
+                    className="px-3 text-[10px] uppercase font-bold tracking-widest"
+                    style={{ color: "var(--error)", lineHeight: "32px" }}
+                >
+                    ⚠ writes enabled on production
+                </span>
+            )}
+
             {/* RO/RW toggle — pushed to the right */}
             <button
                 onClick={onReadOnlyToggle}
                 className="ml-auto flex items-center gap-1.5 px-3 h-full text-[10px] uppercase font-bold tracking-widest transition-all hover:bg-white/5"
                 style={{
-                    color: readOnly ? "var(--warning)" : "var(--text-dim)",
+                    color: readOnly
+                        ? "var(--warning)"
+                        : prodWrites
+                          ? "var(--error)"
+                          : "var(--text-dim)",
                     borderLeft: "1px solid var(--border)",
                 }}
                 title={readOnly ? "Switch to read-write" : "Switch to read-only"}
@@ -211,7 +249,11 @@ export default function EnvironmentStrip({
                         display: "inline-block",
                         width: "5px",
                         height: "5px",
-                        background: readOnly ? "var(--warning)" : "var(--text-dim)",
+                        background: readOnly
+                            ? "var(--warning)"
+                            : prodWrites
+                              ? "var(--error)"
+                              : "var(--text-dim)",
                         boxShadow: readOnly ? "0 0 5px var(--warning)" : "none",
                         flexShrink: 0,
                     }}

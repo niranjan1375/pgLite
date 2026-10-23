@@ -112,5 +112,7 @@ statuses, gaps, and the next-task backlog (snapshot 2026-06-26, branch
 - All design tokens (colors, spacing, typography, layout dimensions) live in `lib/design-system.ts` — use these constants rather than hardcoding values
 - TypeScript throughout — avoid `any`
 - Tailwind for styling — no CSS modules
+- Element-level resets in `globals.css` go inside `@layer base`. Unlayered CSS beats every Tailwind v4 utility, which once silently zeroed all `p-*`/`m-*`/`ml-auto`/button `text-[..]` classes.
+- Production-ness comes from the server (`isProdEnvironment` / the `production` prop), never from the env name.
 - API routes follow Next.js App Router convention (`route.ts` with named exports `GET`/`POST`)
 - No ORM — raw SQL via `pg` client

@@ -14,7 +14,10 @@ export default function RootLayout({
   return (
     // Theme is set here in one place; palettes live in globals.css.
     <html lang="en" data-theme="tokyo">
-      <body className="antialiased">{children}</body>
+      {/* Browser extensions add attributes to <body> before React loads. */}
+      <body className="antialiased" suppressHydrationWarning>
+        {children}
+      </body>
     </html>
   );
 }

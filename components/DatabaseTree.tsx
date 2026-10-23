@@ -396,7 +396,7 @@ export default function DatabaseTree({
                                 <button
                                     key={template}
                                     onClick={() => onTemplateOpen?.(template)}
-                                    className="w-full text-left px-2 py-1 text-[11px] rounded hover:opacity-80"
+                                    className="w-full text-left px-2 py-0.5 text-[11px] rounded hover:opacity-80"
                                     style={{
                                         color: "var(--text-primary)",
                                         background: "var(--bg)",
@@ -440,11 +440,11 @@ export default function DatabaseTree({
                         );
 
                         return (
-                            <div key={dbInfo.database} className="mb-1">
+                            <div key={dbInfo.database}>
                                 {/* Database Header */}
                                 <button
                                     onClick={() => toggleDatabase(dbInfo.database)}
-                                    className="w-full flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-medium transition-colors"
+                                    className="w-full flex items-center gap-1.5 px-2 py-px text-[11px] font-medium transition-colors"
                                     style={{ color: "var(--text-secondary)" }}
                                     onMouseEnter={(e) => { e.currentTarget.style.background = "var(--panel-elevated)"; }}
                                     onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
@@ -491,7 +491,7 @@ export default function DatabaseTree({
                                                 {/* Schema Header */}
                                                 <button
                                                     onClick={() => toggleSchema(schemaKey)}
-                                                    className="w-full flex items-center gap-1.5 px-2 py-1 text-[11px] transition-colors"
+                                                    className="w-full flex items-center gap-1.5 px-2 py-0.5 text-[11px] transition-colors"
                                                     style={{ color: "var(--text-muted)" }}
                                                     onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-secondary)"; }}
                                                     onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; }}
@@ -564,7 +564,7 @@ export default function DatabaseTree({
                                                                                         },
                                                                                     )
                                                                                 }
-                                                                                className="flex-1 text-left px-2 py-1 text-[11px] transition-colors flex items-center gap-2 min-w-0"
+                                                                                className="flex-1 text-left px-2 py-px text-[11px] transition-colors flex items-center gap-2 min-w-0"
                                                                                 style={{ color: "var(--text-secondary)" }}
                                                                                 onMouseEnter={(e) => {
                                                                                     e.currentTarget.style.background = "rgba(0,229,255,0.04)";
@@ -728,7 +728,7 @@ export default function DatabaseTree({
                             <div key={schema} className="mb-1">
                                 <button
                                     onClick={() => toggleStandardSchema(schema)}
-                                    className="w-full text-[11px] px-2 py-1 flex items-center gap-1.5 transition-colors"
+                                    className="w-full text-[11px] px-2 py-0.5 flex items-center gap-1.5 transition-colors"
                                     style={{ color: "var(--text-muted)" }}
                                     onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-secondary)"; }}
                                     onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; }}
@@ -781,7 +781,7 @@ export default function DatabaseTree({
                                                                     table,
                                                                 )
                                                             }
-                                                            className="flex-1 text-left px-2 py-1 text-[11px] transition-colors flex items-center gap-2 min-w-0"
+                                                            className="flex-1 text-left px-2 py-px text-[11px] transition-colors flex items-center gap-2 min-w-0"
                                                             style={{ color: "var(--text-secondary)" }}
                                                             onMouseEnter={(e) => {
                                                                 e.currentTarget.style.background = "rgba(0,229,255,0.04)";

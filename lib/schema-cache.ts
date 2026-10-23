@@ -11,6 +11,9 @@ import { getEnvironment } from "./environments";
 // survive server restarts.
 
 export const SCHEMA_STALE_AFTER_MS = 10 * 60_000;
+// Bump when the cached shape changes so old disk entries are ignored
+// (v2: primaryKeys are arrays; v1 stored Postgres' "{id}" text form).
+const SCHEMA_CACHE_VERSION = "v2";
 const CACHE_DIR =
     process.env.PGLITE_SCHEMA_CACHE_DIR ||
     path.join(process.cwd(), ".pgconsole", "schema-cache");
@@ -44,7 +47,7 @@ const store = (globalStore.__pgliteSchemaCache ??= {
  */
 export function schemaCacheKey(kind: string, environment: string, database = "") {
     const host = getEnvironment(environment)?.host ?? "";
-    return [kind, environment, host, database].join(":");
+    return [SCHEMA_CACHE_VERSION, kind, environment, host, database].join(":");
 }
 
 function fileFor(key: string) {

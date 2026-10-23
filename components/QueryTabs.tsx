@@ -43,6 +43,8 @@ interface QueryTabsProps {
     globalEnvironment: string;
     databases: string[];
     environmentNames?: Record<string, string>;
+    /** Server-decided production flag; RW tabs on these get a loud marker. */
+    isProduction?: (environment: string) => boolean;
     onTabChange?: (tab: QueryTab) => void;
 }
 
@@ -140,6 +142,7 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
         globalEnvironment,
         databases,
         environmentNames = {},
+        isProduction,
         onTabChange,
     },
     ref,
@@ -507,7 +510,7 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
                             }}
                         />
                         <span className="truncate">{displayName}</span>
-                        {tab.readOnly && (
+                        {tab.readOnly ? (
                             <span
                                 className="text-[9px] tracking-wide"
                                 style={{ color: "var(--text-dim)", flexShrink: 0 }}
@@ -515,6 +518,20 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
                             >
                                 RO
                             </span>
+                        ) : (
+                            isProduction?.(tab.environment) && (
+                                <span
+                                    className="text-[9px] font-bold tracking-wide px-1"
+                                    style={{
+                                        color: "var(--bg)",
+                                        background: "var(--error)",
+                                        flexShrink: 0,
+                                    }}
+                                    title="Writes enabled on a production environment"
+                                >
+                                    RW
+                                </span>
+                            )
                         )}
                         {tab.mode === "workspace" && (
                             <span

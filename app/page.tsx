@@ -31,6 +31,7 @@ import { useEditorLayout } from "@/hooks/useEditorLayout";
 import { useSchemaMetadata } from "@/hooks/useSchemaMetadata";
 import { useTemplates } from "@/hooks/useTemplates";
 import { useQueryExecution } from "@/hooks/useQueryExecution";
+import { useConnection } from "@/hooks/useConnection";
 
 const SQLEditor = dynamic(() => import("@/components/SQLEditor"), {
     ssr: false,
@@ -56,8 +57,6 @@ export default function Home() {
     const [contextModalOpen, setContextModalOpen] = useState(false);
     const [saveQueryModalOpen, setSaveQueryModalOpen] = useState(false);
     const [saveQueryModalSeed, setSaveQueryModalSeed] = useState(0);
-    const [connected, setConnected] = useState(false);
-    const [dbLatency, setDbLatency] = useState<number | undefined>();
 
     const {
         environmentIds,
@@ -70,11 +69,13 @@ export default function Home() {
     const saved = useSavedQueries();
     const layout = useEditorLayout();
     const schema = useSchemaMetadata(activeTab);
+    const connection = useConnection(activeTab?.environment);
     const exec = useQueryExecution({
         activeTab,
         isProdEnvironment,
         getPrimaryKeys: schema.getPrimaryKeys,
         onHistory: history.append,
+        onQueryFinished: connection.reportQuery,
     });
     const { setError, runQuery, resetResults } = exec;
     const { buildWorkspaceVariables } = contexts;
@@ -201,23 +202,6 @@ export default function Home() {
         [runQuery, buildWorkspaceVariables, setError],
     );
 
-    const checkConnection = useCallback(async (environment: string) => {
-        setConnected(false);
-        setDbLatency(undefined);
-        try {
-            const res = await fetch(
-                `/api/ping?environment=${encodeURIComponent(environment)}`,
-            );
-            const data = await res.json();
-            setConnected(data.ok === true);
-            if (data.ok && typeof data.latencyMs === "number") {
-                setDbLatency(data.latencyMs);
-            }
-        } catch {
-            setConnected(false);
-        }
-    }, []);
-
     const lastTabTargetRef = useRef<string | null>(null);
 
     const handleTabChange = useCallback(
@@ -246,9 +230,8 @@ export default function Home() {
 
             resetResults();
             await fetchDatabases(tab.environment);
-            checkConnection(tab.environment);
         },
-        [resetResults, fetchDatabases, checkConnection],
+        [resetResults, fetchDatabases],
     );
 
     const databases = activeTab
@@ -293,6 +276,7 @@ export default function Home() {
                                 activeTab?.environment || defaultEnvironment
                             }
                             environmentNames={environmentNamesById}
+                            isProduction={isProdEnvironment}
                             databases={databases}
                             onTabChange={handleTabChange}
                         />
@@ -332,6 +316,8 @@ export default function Home() {
                                 environment={activeTab.environment}
                                 database={activeTab.database}
                                 readOnly={activeTab.readOnly}
+                                production={isProdEnvironment(activeTab.environment)}
+                                workspaceMode={activeTab.mode === "workspace"}
                                 availableEnvironments={
                                     environmentIds.length > 0
                                         ? environmentIds
@@ -415,8 +401,11 @@ export default function Home() {
 
                         {/* Results */}
                         <div className="flex-1 flex flex-col min-h-0">
+                            {/* Query results show routing in the grid header. */}
                             <ResultBanners
-                                routedDatabase={routedDatabase}
+                                routedDatabase={
+                                    exec.explainResult ? routedDatabase : undefined
+                                }
                                 truncated={exec.result?.truncated}
                                 rowCount={exec.result?.rowCount}
                                 totalRows={exec.result?.totalRows}
@@ -510,8 +499,11 @@ export default function Home() {
                     readOnly={activeTab?.readOnly || false}
                     rowCount={exec.result?.rowCount}
                     executionTime={exec.executionTime}
-                    latency={dbLatency}
-                    connected={connected}
+                    latency={connection.latency}
+                    connected={connection.connected}
+                    production={
+                        activeTab ? isProdEnvironment(activeTab.environment) : false
+                    }
                     contextProfileName={contexts.activeProfile?.name}
                     onOpenContext={() => setContextModalOpen(true)}
                 />

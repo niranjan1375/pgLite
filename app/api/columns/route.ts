@@ -45,7 +45,7 @@ async function loadColumns(environment: string, database: string) {
             SELECT
                 kcu.table_schema,
                 kcu.table_name,
-                array_agg(kcu.column_name ORDER BY kcu.ordinal_position) AS primary_keys
+                array_agg(kcu.column_name::text ORDER BY kcu.ordinal_position) AS primary_keys
             FROM information_schema.table_constraints tc
             JOIN information_schema.key_column_usage kcu
                 ON tc.constraint_name = kcu.constraint_name
@@ -60,7 +60,7 @@ async function loadColumns(environment: string, database: string) {
             c.column_name,
             c.data_type,
             c.is_nullable,
-            COALESCE(pk.primary_keys, ARRAY[]::text[]) AS primary_keys
+            COALESCE(pk.primary_keys, ARRAY[]::text[]) AS primary_keys -- text[], not name[]: pg only parses the former into an array
         FROM information_schema.tables t
         JOIN information_schema.columns c 
             ON t.table_schema = c.table_schema 
