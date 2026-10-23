@@ -47,6 +47,7 @@ export function useQueryExecution({
     isProdEnvironment,
     getPrimaryKeys,
     onHistory,
+    onQueryFinished,
 }: {
     activeTab: { environment: string; database: string } | null;
     isProdEnvironment: (environment: string) => boolean;
@@ -56,6 +57,8 @@ export function useQueryExecution({
         name: string;
     }) => string[];
     onHistory: (item: QueryHistoryItem) => void;
+    /** A query against `environment` finished: ok = it reached the database. */
+    onQueryFinished?: (environment: string, ok: boolean) => void;
 }) {
     const [result, setResult] = useState<QueryResult | null>(null);
     const [explainResult, setExplainResult] = useState<ExplainResult | null>(
@@ -163,6 +166,7 @@ export function useQueryExecution({
                 setExecutionTime(execTime);
 
                 const failed = isQueryError(data);
+                onQueryFinished?.(environment, !failed);
                 onHistory({
                     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
                     query: buildHistoryQuery(query, variables),
@@ -201,6 +205,7 @@ export function useQueryExecution({
                     setError(null);
                 } else {
                     setError("Failed to connect to the server.");
+                    onQueryFinished?.(environment, false);
                 }
                 setLoading(false);
             } finally {
@@ -210,7 +215,7 @@ export function useQueryExecution({
                 }
             }
         },
-        [onHistory],
+        [onHistory, onQueryFinished],
     );
 
     /**

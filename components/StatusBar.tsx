@@ -9,7 +9,9 @@ interface StatusBarProps {
     rowCount?: number;
     executionTime?: number;
     latency?: number;
-    connected: boolean;
+    /** null while the first ping for this environment is in flight. */
+    connected: boolean | null;
+    production: boolean;
     contextProfileName?: string;
     onOpenContext?: () => void;
 }
@@ -22,11 +24,18 @@ export default function StatusBar({
     executionTime,
     latency,
     connected,
+    production,
     contextProfileName,
     onOpenContext,
 }: StatusBarProps) {
     const envColor = getEnvironmentColor(environment);
-    const isProd = environment.includes("uat") || environment.includes("prod");
+    const isProd = production;
+    const statusColor =
+        connected === null
+            ? "var(--text-dim)"
+            : connected
+              ? "var(--success)"
+              : "var(--error)";
 
     const seg = {
         display: "flex" as const,
@@ -144,21 +153,26 @@ export default function StatusBar({
                         style={{
                             width: "6px",
                             height: "6px",
-                            background: connected ? "var(--success)" : "var(--error)",
-                            boxShadow: connected
-                                ? "0 0 5px var(--success), 0 0 10px rgba(0,255,136,0.3)"
-                                : "0 0 5px var(--error)",
+                            background: statusColor,
+                            boxShadow:
+                                connected === null
+                                    ? "none"
+                                    : `0 0 5px ${statusColor}`,
                             flexShrink: 0,
                         }}
                     />
                     <span
                         style={{
-                            color: connected ? "var(--success)" : "var(--error)",
+                            color: statusColor,
                             fontSize: "10px",
                             letterSpacing: "0.06em",
                         }}
                     >
-                        {connected ? "connected" : "offline"}
+                        {connected === null
+                            ? "checking"
+                            : connected
+                              ? "connected"
+                              : "offline · retrying"}
                     </span>
                 </div>
             </div>

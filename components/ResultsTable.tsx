@@ -14,6 +14,7 @@ interface QueryResult {
     rowCount: number;
     fields: string[];
     fieldTypes?: number[];
+    routedDatabase?: string; // workspace mode: the database the query was routed to
 }
 
 interface TableViewState {
@@ -61,6 +62,45 @@ interface SortConfig {
 type Density = "compact" | "default";
 
 const ROW_NUM_WIDTH = 28;
+// Hover actions: view / copy (+ delete when writable), as icons.
+const ACTIONS_WIDTH_RO = 48;
+const ACTIONS_WIDTH_RW = 70;
+
+// Default column widths are sized to content: the header (name + type label)
+// vs. the longest value in the first rows, clamped so one wide JSON column
+// can't push everything else off screen. Drag-resize still overrides.
+const MONO_CHAR_PX = 7.3; // 12px mono
+const HEADER_CHAR_PX = 6.8; // 11px semibold sans
+const TYPE_CHAR_PX = 5.8; // 10px type label
+const CELL_CHROME_PX = 24 + 20; // px-3 + copy button
+const HEADER_CHROME_PX = 24 + 20 + 8; // px-3 + resize gutter + gap
+const MIN_COL_WIDTH = 80;
+const MAX_COL_WIDTH = 420;
+const WIDTH_SAMPLE_ROWS = 50;
+
+function cellText(value: unknown): string {
+    if (value === null || value === undefined) return "null";
+    return typeof value === "object" ? JSON.stringify(value) : String(value);
+}
+
+function contentWidth(
+    field: string,
+    typeLabel: string | undefined,
+    rows: Record<string, unknown>[],
+): number {
+    let longest = 0;
+    for (let i = 0; i < Math.min(rows.length, WIDTH_SAMPLE_ROWS); i++) {
+        longest = Math.max(longest, cellText(rows[i][field]).length);
+    }
+    const header =
+        field.length * HEADER_CHAR_PX +
+        (typeLabel ? typeLabel.length * TYPE_CHAR_PX : 0) +
+        HEADER_CHROME_PX;
+    const cells = longest * MONO_CHAR_PX + CELL_CHROME_PX;
+    return Math.round(
+        Math.min(MAX_COL_WIDTH, Math.max(MIN_COL_WIDTH, header, cells)),
+    );
+}
 
 // PostgreSQL OID → display type label
 const PG_OID_TYPES: Record<number, string> = {
@@ -126,6 +166,8 @@ export default function ResultsTable({
     const searchDebounceRef = useRef<number | null>(null);
 
     const hasTableViewControls = Boolean(tableView && onTableViewChange);
+    const actionsWidth =
+        !readOnly && onDeleteRow ? ACTIONS_WIDTH_RW : ACTIONS_WIDTH_RO;
 
     useEffect(() => {
         return () => {
@@ -139,17 +181,6 @@ export default function ResultsTable({
     const ROW_HEIGHT = density === "compact" ? 26 : 32;
     const OVERSCAN = 15; // Extra rows to render above/below viewport for smooth scrolling
 
-    // Derive column widths with defaults
-    const effectiveColumnWidths = useMemo(() => {
-        if (!result) return {};
-
-        const widths: ColumnWidth = {};
-        result.fields.forEach((field, idx) => {
-            widths[field] = columnWidths[field] ?? (idx === 0 ? 200 : 180);
-        });
-        return widths;
-    }, [result, columnWidths]);
-
     // Derive column types from OIDs returned by the server (accurate for any query)
     const columnTypes = useMemo(() => {
         if (!result) return {} as Record<string, string>;
@@ -160,6 +191,21 @@ export default function ResultsTable({
         });
         return types;
     }, [result]);
+
+    // Content-sized defaults (computed once per result), then user resizes on top.
+    const autoColumnWidths = useMemo(() => {
+        const widths: ColumnWidth = {};
+        if (!result) return widths;
+        for (const field of result.fields) {
+            widths[field] = contentWidth(field, columnTypes[field], result.rows);
+        }
+        return widths;
+    }, [result, columnTypes]);
+
+    const effectiveColumnWidths = useMemo(
+        () => ({ ...autoColumnWidths, ...columnWidths }),
+        [autoColumnWidths, columnWidths],
+    );
 
     // Get visible columns (not hidden)
     const visibleFields = useMemo(() => {
@@ -564,6 +610,17 @@ export default function ResultsTable({
                     <span>
                         RESULTS ({totalResultRows.toLocaleString()} ROWS)
                     </span>
+                    {result.routedDatabase && (
+                        <>
+                            <span>│</span>
+                            <span title="Workspace mode routed this query by its table prefix">
+                                ROUTED →{" "}
+                                <span style={{ color: "var(--accent)" }}>
+                                    {result.routedDatabase}
+                                </span>
+                            </span>
+                        </>
+                    )}
                     {tableName && (
                         <>
                             <span>│</span>
@@ -849,15 +906,15 @@ export default function ResultsTable({
                         <div
                             className="flex-shrink-0 flex items-center justify-center text-[10px] uppercase tracking-wider"
                             style={{
-                                width: readOnly ? 100 : 150,
-                                minWidth: readOnly ? 100 : 150,
+                                width: actionsWidth,
+                                minWidth: actionsWidth,
                                 background: "var(--panel-elevated)",
                                 borderRight: "1px solid var(--grid-line)",
                                 borderBottom: "1px solid var(--border-bright)",
                                 color: "var(--text-muted)",
                             }}
                         >
-                            Actions
+                            ···
                         </div>
 
                         {/* Column headers */}
@@ -958,8 +1015,8 @@ export default function ResultsTable({
                                     <div
                                         className="flex-shrink-0 flex items-center gap-1 justify-center opacity-0 group-hover/row:opacity-100 transition-opacity"
                                         style={{
-                                            width: readOnly ? 100 : 150,
-                                            minWidth: readOnly ? 100 : 150,
+                                            width: actionsWidth,
+                                            minWidth: actionsWidth,
                                             background: "inherit",
                                             borderRight: "1px solid #1a2840",
                                             borderBottom: "1px solid #1a2840",
@@ -967,28 +1024,38 @@ export default function ResultsTable({
                                     >
                                         <button
                                             onClick={() => setExpandedRow(row)}
-                                            className="px-1.5 py-0.5 text-[10px] uppercase tracking-wide border transition-all hover:border-current"
-                                            style={{ color: "var(--accent)", borderColor: "rgba(0,255,136,0.3)" }}
+                                            className="p-1 transition-opacity hover:opacity-70"
+                                            style={{ color: "var(--accent)" }}
                                             title="View all fields"
+                                            aria-label="View row"
                                         >
-                                            view
+                                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M7 1h4v4M5 11H1V7M11 1 7 5M1 11l4-4" />
+                                            </svg>
                                         </button>
                                         <button
                                             onClick={() => copyRowAsJSON(row)}
-                                            className="px-1.5 py-0.5 text-[10px] uppercase tracking-wide border transition-all hover:border-current"
-                                            style={{ color: "var(--text-muted)", borderColor: "var(--border-bright)" }}
+                                            className="p-1 transition-opacity hover:opacity-70"
+                                            style={{ color: "var(--text-muted)" }}
                                             title="Copy row as JSON"
+                                            aria-label="Copy row"
                                         >
-                                            copy
+                                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+                                                <rect x="4" y="1" width="7" height="8" />
+                                                <path d="M1 4v7h7" strokeOpacity="0.5" />
+                                            </svg>
                                         </button>
                                         {!readOnly && onDeleteRow && (
                                             <button
                                                 onClick={() => onDeleteRow(row)}
-                                                className="px-1.5 py-0.5 text-[10px] uppercase tracking-wide border transition-all hover:border-current"
-                                                style={{ color: "var(--error)", borderColor: "rgba(255,45,85,0.3)" }}
+                                                className="p-1 transition-opacity hover:opacity-70"
+                                                style={{ color: "var(--error)" }}
                                                 title="Delete row"
+                                                aria-label="Delete row"
                                             >
-                                                del
+                                                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+                                                    <path d="M2 3h8M4.5 3V1.5h3V3M3 3l.5 7.5h5L9 3" />
+                                                </svg>
                                             </button>
                                         )}
                                     </div>
@@ -1005,8 +1072,10 @@ export default function ResultsTable({
                                               : String(value);
                                         const isLastField = fieldIdx === visibleFields.length - 1;
                                         const colW = effectiveColumnWidths[field] || 180;
-                                        // Truncation: chars-per-pixel ~0.13 at 12px mono
-                                        const isTruncated = !isNull && displayValue.length > Math.floor(colW * 0.13);
+                                        const isTruncated =
+                                            !isNull &&
+                                            displayValue.length * MONO_CHAR_PX >
+                                                colW - CELL_CHROME_PX;
 
                                         return (
                                             <div
@@ -1049,6 +1118,7 @@ export default function ResultsTable({
                                                             <svg
                                                                 width="10" height="10" viewBox="0 0 10 10" fill="none"
                                                                 stroke="var(--text-dim)" strokeWidth="1.2" strokeLinecap="round"
+                                                                className="opacity-0 group-hover/cell:opacity-100 transition-opacity"
                                                                 style={{ marginLeft: "auto" }}
                                                             >
                                                                 <path d="M1 5h8M6 2l3 3-3 3" />
