@@ -121,10 +121,14 @@ export async function POST(req: NextRequest) {
             const rows = truncated
                 ? result.rows.slice(0, MAX_ROWS)
                 : result.rows;
+            // Statements without a result set (UPDATE/DELETE/INSERT without
+            // RETURNING, DDL) report the rows they affected instead.
+            const returnsRows = result.fields.length > 0;
 
             return NextResponse.json({
                 rows,
-                rowCount: rows.length,
+                rowCount: returnsRows ? rows.length : (result.rowCount ?? 0),
+                command: result.command,
                 totalRows: result.rows.length,
                 fields: result.fields.map((f) => f.name),
                 fieldTypes: result.fields.map((f) => f.dataTypeID),

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
     isExplainableReadQuery,
     isWriteQuery,
+    replaceInCode,
     scanStatements,
 } from "./sql-safety";
 
@@ -87,5 +88,20 @@ describe("isExplainableReadQuery", () => {
             isExplainableReadQuery("WITH d AS (DELETE FROM t RETURNING 1) SELECT 1"),
         ).toBe(false);
         expect(isExplainableReadQuery("SELECT 1; SELECT 2")).toBe(false);
+    });
+});
+
+describe("replaceInCode", () => {
+    it("rewrites code but not literals, quoted identifiers or comments", () => {
+        const sql =
+            "SELECT core.users.id, 'see core.users', \"core.x\" FROM core.users -- core.users\nWHERE note = $$core.users$$";
+        expect(replaceInCode(sql, /\bcore\./gi, "")).toBe(
+            "SELECT users.id, 'see core.users', \"core.x\" FROM users -- core.users\nWHERE note = $$core.users$$",
+        );
+    });
+
+    it("round-trips input unchanged when nothing matches", () => {
+        const sql = "SELECT E'a\\'b;', $x$ ; $x$ /* ; */ ; -- tail";
+        expect(replaceInCode(sql, /nomatch/g, "")).toBe(sql);
     });
 });
