@@ -1,7 +1,89 @@
 import type { PoolClient, QueryConfig, QueryResult } from "pg";
+import Cursor from "pg-cursor";
+import { typeParsers } from "./db";
+import { scanStatements } from "./sql-safety";
+
+export interface UserQueryResult extends QueryResult {
+    /** More than `maxRows` rows existed; `rows` holds only the first `maxRows`. */
+    truncated: boolean;
+}
+
+/** Row-returning statements that are read through a cursor. */
+const STREAMED_KEYWORDS = new Set(["SELECT", "WITH", "VALUES", "TABLE"]);
+
+function isStreamable(sql: string): boolean {
+    const statements = scanStatements(sql);
+    if (statements.length !== 1) {
+        return false;
+    }
+    const keyword = /^[A-Za-z_]+/.exec(statements[0].code)?.[0].toUpperCase();
+    return keyword !== undefined && STREAMED_KEYWORDS.has(keyword);
+}
 
 /**
- * Execute user-written SQL on a pinned client.
+ * Fetch at most `maxRows + 1` rows through a cursor, so an unbounded SELECT
+ * never pulls the whole table into memory (or over the network) only to be
+ * cut down to `maxRows` afterwards.
+ */
+async function readCapped(
+    client: PoolClient,
+    sql: string,
+    maxRows: number,
+): Promise<UserQueryResult> {
+    // The cursor ignores the pool's type parsers unless given them explicitly.
+    const cursor = client.query(
+        new Cursor(sql, undefined, { types: typeParsers }),
+    );
+    const { rows, result } = await new Promise<{
+        rows: Record<string, unknown>[];
+        result: QueryResult;
+    }>((resolve, reject) => {
+        cursor.read(maxRows + 1, (error, rows, result) =>
+            error ? reject(error) : resolve({ rows, result }),
+        );
+    });
+    // Only close after a successful read: on error the cursor has already
+    // re-synced the connection, and a second close could wait forever.
+    await cursor.close();
+
+    const truncated = rows.length > maxRows;
+    const kept = truncated ? rows.slice(0, maxRows) : rows;
+    return {
+        command: result.command ?? "SELECT",
+        rowCount: kept.length,
+        oid: 0,
+        fields: result.fields,
+        rows: kept,
+        truncated,
+    };
+}
+
+async function execute(
+    client: PoolClient,
+    sql: string,
+    options: { singleStatement: boolean; maxRows: number },
+): Promise<UserQueryResult> {
+    if (isStreamable(sql)) {
+        return readCapped(client, sql, options.maxRows);
+    }
+
+    const result: QueryResult | QueryResult[] = options.singleStatement
+        ? // queryMode is supported by pg >= 8.11 but missing from @types/pg.
+          await client.query({ text: sql, queryMode: "extended" } as QueryConfig)
+        : await client.query(sql);
+    // Multi-statement input returns one result per statement; show the last.
+    const last = Array.isArray(result) ? result[result.length - 1] : result;
+    const truncated = last.rows.length > options.maxRows;
+    return {
+        ...last,
+        rows: truncated ? last.rows.slice(0, options.maxRows) : last.rows,
+        truncated,
+    };
+}
+
+/**
+ * Execute user-written SQL on a pinned client, returning at most `maxRows`
+ * rows (single SELECT-like statements are streamed and stop early).
  *
  * Read-only mode is enforced by Postgres, not by inspecting the SQL: the
  * statement runs inside BEGIN READ ONLY … ROLLBACK over the extended query
@@ -12,21 +94,21 @@ import type { PoolClient, QueryConfig, QueryResult } from "pg";
 export async function runUserQuery(
     client: PoolClient,
     sql: string,
-    options: { readOnly: boolean },
-): Promise<QueryResult> {
+    options: { readOnly: boolean; maxRows: number },
+): Promise<UserQueryResult> {
     if (!options.readOnly) {
-        const result: QueryResult | QueryResult[] = await client.query(sql);
-        // Multi-statement input returns one result per statement; show the last.
-        return Array.isArray(result) ? result[result.length - 1] : result;
+        return execute(client, sql, {
+            singleStatement: false,
+            maxRows: options.maxRows,
+        });
     }
 
     await client.query("BEGIN READ ONLY");
     try {
-        // queryMode is supported by pg >= 8.11 but missing from @types/pg.
-        return await client.query({
-            text: sql,
-            queryMode: "extended",
-        } as QueryConfig);
+        return await execute(client, sql, {
+            singleStatement: true,
+            maxRows: options.maxRows,
+        });
     } finally {
         await client.query("ROLLBACK").catch(() => {});
     }
