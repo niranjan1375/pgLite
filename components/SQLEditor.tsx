@@ -3,38 +3,12 @@
 import { useRef, useEffect, useCallback } from "react";
 import Editor, { OnMount } from "@monaco-editor/react";
 import type * as monacoEditor from "monaco-editor";
+import { scanStatements } from "@/lib/sql-safety";
 
 interface StatementInfo {
     text: string;
     startLine: number;
     endLine: number;
-}
-
-const RUNNABLE_SQL_PREFIXES = [
-    "SELECT",
-    "WITH",
-    "INSERT",
-    "UPDATE",
-    "DELETE",
-    "CREATE",
-    "ALTER",
-    "DROP",
-    "TRUNCATE",
-    "MERGE",
-    "CALL",
-    "EXPLAIN",
-    "VALUES",
-] as const;
-
-function isRunnableSqlStatement(text: string): boolean {
-    const normalized = text.trim().toUpperCase();
-    if (!normalized || normalized.startsWith("--")) {
-        return false;
-    }
-
-    return RUNNABLE_SQL_PREFIXES.some((prefix) =>
-        normalized.startsWith(prefix),
-    );
 }
 
 interface Column {
@@ -89,80 +63,39 @@ function extractEditorVariables(
     return variableNames;
 }
 
+/**
+ * Runnable statements in the editor, skipping a leading `@var = value` block.
+ * Splitting is done by the shared scanner, so `;` inside strings, comments
+ * and $$ bodies never splits, and a statement may start with comment lines.
+ */
 function getStatements(model: monacoEditor.editor.ITextModel): StatementInfo[] {
-    const statements: StatementInfo[] = [];
-
     let variableBlockEndLine = 0;
     const totalLines = model.getLineCount();
     for (let line = 1; line <= totalLines; line++) {
-        const lineContent = model.getLineContent(line).trim();
-        if (lineContent.startsWith("@")) {
-            variableBlockEndLine = line;
-            continue;
+        if (!model.getLineContent(line).trim().startsWith("@")) {
+            break;
         }
-        break;
+        variableBlockEndLine = line;
     }
 
-    let currentStatement = "";
-    let currentStartLine: number | null = null;
-
-    const pushStatement = (endLine: number) => {
-        const trimmed = currentStatement.trim();
-        if (!trimmed || currentStartLine === null) {
-            currentStatement = "";
-            currentStartLine = null;
-            return;
-        }
-
-        if (!isRunnableSqlStatement(trimmed)) {
-            currentStatement = "";
-            currentStartLine = null;
-            return;
-        }
-
-        statements.push({
-            text: trimmed,
-            startLine: currentStartLine,
-            endLine,
-        });
-
-        currentStatement = "";
-        currentStartLine = null;
-    };
-
-    for (let line = variableBlockEndLine + 1; line <= totalLines; line++) {
-        const lineContent = model.getLineContent(line);
-
-        if (currentStartLine === null && lineContent.trim()) {
-            currentStartLine = line;
-        }
-
-        let segmentStart = 0;
-        for (let index = 0; index < lineContent.length; index++) {
-            if (lineContent[index] !== ";") {
-                continue;
-            }
-
-            currentStatement += lineContent.slice(segmentStart, index);
-            pushStatement(line);
-            segmentStart = index + 1;
-
-            if (lineContent.slice(segmentStart).trim()) {
-                currentStartLine = line;
-            }
-        }
-
-        currentStatement += lineContent.slice(segmentStart);
-        if (line < totalLines) {
-            currentStatement += "\n";
-        }
+    if (variableBlockEndLine === totalLines) {
+        return [];
     }
 
-    if (currentStatement.trim()) {
-        pushStatement(totalLines);
-    }
+    const bodyOffset =
+        variableBlockEndLine === 0
+            ? 0
+            : model.getOffsetAt({
+                  lineNumber: variableBlockEndLine + 1,
+                  column: 1,
+              });
+    const body = model.getValue().slice(bodyOffset);
 
-    return statements;
+    return scanStatements(body).map((statement) => ({
+        text: statement.text,
+        startLine: model.getPositionAt(bodyOffset + statement.start).lineNumber,
+        endLine: model.getPositionAt(bodyOffset + statement.end).lineNumber,
+    }));
 }
 
 export default function SQLEditor({
