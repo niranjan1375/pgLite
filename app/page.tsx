@@ -42,6 +42,7 @@ import {
     resolveVariables,
     type ContextProfile,
 } from "@/lib/variable-resolver";
+import { isWriteQuery } from "@/lib/sql-safety";
 import { RefreshIcon } from "@/icons";
 
 const SQLEditor = dynamic(() => import("@/components/SQLEditor"), {
@@ -142,6 +143,7 @@ interface EnvironmentSummary {
     id: string;
     name: string;
     requiresVPN: boolean;
+    production: boolean;
 }
 
 const WORKSPACE_SCHEMA_CACHE_TTL_MS = 120_000;
@@ -206,6 +208,9 @@ export default function Home() {
     const [environmentNamesById, setEnvironmentNamesById] = useState<
         Record<string, string>
     >({});
+    const [productionByEnv, setProductionByEnv] = useState<
+        Record<string, boolean>
+    >({});
     const [defaultEnvironment, setDefaultEnvironment] = useState<string>("dev");
     const [connected, setConnected] = useState(false);
     const [dbLatency, setDbLatency] = useState<number | undefined>();
@@ -269,6 +274,12 @@ export default function Home() {
                 setEnvironmentNamesById(
                     envs.reduce<Record<string, string>>((acc, env) => {
                         acc[env.id] = env.name;
+                        return acc;
+                    }, {}),
+                );
+                setProductionByEnv(
+                    envs.reduce<Record<string, boolean>>((acc, env) => {
+                        acc[env.id] = env.production;
                         return acc;
                     }, {}),
                 );
@@ -928,73 +939,12 @@ export default function Home() {
         }
     }, [activeTab?.mode, fetchTemplates]);
 
-    // Helper to detect write queries
-    const isWriteQuery = useCallback((query: string): boolean => {
-        const upperQuery = query.trim().toUpperCase();
-        const writeKeywords = [
-            "INSERT",
-            "UPDATE",
-            "DELETE",
-            "DROP",
-            "CREATE",
-            "ALTER",
-            "TRUNCATE",
-            "REPLACE",
-            "MERGE",
-        ];
-        return writeKeywords.some((keyword) => upperQuery.startsWith(keyword));
-    }, []);
-
-    // Helper to check if environment is production
-    const isProdEnvironment = useCallback((environment: string): boolean => {
-        return (
-            environment.includes("uat") ||
-            environment.includes("prod") ||
-            environment.includes("staging")
-        );
-    }, []);
-
-    // Helper to extract table info from SELECT queries
-    const extractTableFromQuery = useCallback(
-        (
-            query: string,
-            database: string,
-            mode: "standard" | "workspace",
-        ): { name: string; schema: string; database: string } | null => {
-            const trimmedQuery = query.trim().toUpperCase();
-            if (!trimmedQuery.startsWith("SELECT")) return null;
-
-            // Match: FROM table_name, FROM schema.table_name, or FROM database.schema.table_name
-            const fromMatch = query.match(
-                /FROM\s+([a-zA-Z0-9_]+\.)?([a-zA-Z0-9_]+\.)?([a-zA-Z0-9_]+)/i,
-            );
-            if (!fromMatch) return null;
-
-            const parts = fromMatch[0].replace(/FROM\s+/i, "").split(".");
-
-            if (parts.length === 1) {
-                // FROM table_name -> use public schema
-                return { name: parts[0], schema: "public", database };
-            } else if (parts.length === 2) {
-                if (mode === "workspace") {
-                    // FROM database.table_name in workspace mode
-                    return {
-                        name: parts[1],
-                        schema: "public",
-                        database: parts[0],
-                    };
-                }
-
-                // FROM schema.table_name
-                return { name: parts[1], schema: parts[0], database };
-            } else if (parts.length === 3) {
-                // FROM database.schema.table_name
-                return { name: parts[2], schema: parts[1], database: parts[0] };
-            }
-
-            return null;
-        },
-        [],
+    // Production-like envs (server-decided, see lib/environments.ts) get a
+    // write confirmation. Unknown envs are treated as production.
+    const isProdEnvironment = useCallback(
+        (environment: string): boolean =>
+            productionByEnv[environment] ?? true,
+        [productionByEnv],
     );
 
     const executeQuery = useCallback(
@@ -1090,21 +1040,11 @@ export default function Home() {
                         setExplainResult(data);
                         setCurrentTable(null);
                     } else {
+                        // Row actions are only offered in the table viewer,
+                        // where the row is known to come from exactly one table.
                         setExplainResult(null);
                         setResult(data);
-
-                        // Extract table info from SELECT queries to enable delete functionality
-                        const tableInfo = extractTableFromQuery(
-                            query,
-                            database,
-                            mode,
-                        );
-                        if (tableInfo) {
-                            setCurrentTable({
-                                ...tableInfo,
-                                primaryKeys: getPrimaryKeysForTable(tableInfo),
-                            });
-                        }
+                        setCurrentTable(null);
                     }
                     setLoading(false);
                 });
@@ -1124,12 +1064,7 @@ export default function Home() {
                 }
             }
         },
-        [
-            appendQueryHistory,
-            buildHistoryQuery,
-            extractTableFromQuery,
-            getPrimaryKeysForTable,
-        ],
+        [appendQueryHistory, buildHistoryQuery],
     );
 
     // Cancel the in-flight query: abort the fetch (frees the client) and ask
@@ -1229,7 +1164,7 @@ export default function Home() {
                 explain,
             );
         },
-        [isWriteQuery, isProdEnvironment, executeQuery],
+        [isProdEnvironment, executeQuery],
     );
 
     const loadTablePreview = useCallback(
@@ -1422,11 +1357,6 @@ export default function Home() {
             const targetDatabase = table.database || currentTab.database;
             if (!targetDatabase) return;
 
-            // Enable write mode for table preview (to allow delete)
-            if (currentTab.readOnly) {
-                queryTabsRef.current?.toggleTabReadOnly?.(currentTab.id);
-            }
-
             void loadTablePreview(
                 {
                     name: table.name,
@@ -1447,26 +1377,30 @@ export default function Home() {
         [loadTablePreview],
     );
 
-    // Handle delete row
+    // Row deletion is only offered in the table viewer (one known table) and
+    // only by primary key, so a predicate can never match the wrong row.
+    const canDeleteRows = Boolean(
+        tableViewerState && currentTable?.primaryKeys?.length,
+    );
+
     const handleDeleteRow = useCallback(
-        async (row: Record<string, unknown>) => {
-            if (!currentTable) {
+        (row: Record<string, unknown>) => {
+            const primaryKeys = currentTable?.primaryKeys || [];
+            if (!currentTable || primaryKeys.length === 0) {
                 return;
             }
 
-            const primaryKeys = currentTable.primaryKeys || [];
-            const canUsePrimaryKeys =
-                primaryKeys.length > 0 &&
-                primaryKeys.every(
-                    (columnName) =>
-                        Object.prototype.hasOwnProperty.call(row, columnName) &&
-                        row[columnName] != null,
+            const missingKey = primaryKeys.find(
+                (columnName) => row[columnName] == null,
+            );
+            if (missingKey) {
+                setError(
+                    `Can't delete this row: primary key column "${missingKey}" is empty.`,
                 );
+                return;
+            }
 
-            const predicateColumns = canUsePrimaryKeys
-                ? primaryKeys
-                : Object.keys(row);
-            const whereClauses = predicateColumns
+            const whereClauses = primaryKeys
                 .map((columnName) =>
                     buildDeletePredicate(columnName, row[columnName]),
                 )
@@ -1477,65 +1411,55 @@ export default function Home() {
                     ? quoteIdentifier(currentTable.name)
                     : `${quoteIdentifier(currentTable.schema)}.${quoteIdentifier(currentTable.name)}`;
 
-            const deleteQuery = `DELETE FROM ${fullTableName} WHERE ${whereClauses};`;
-
-            // Show confirmation dialog
-            setDeleteConfirm({ row, query: deleteQuery });
+            setDeleteConfirm({
+                row,
+                query: `DELETE FROM ${fullTableName} WHERE ${whereClauses};`,
+            });
         },
         [buildDeletePredicate, currentTable, quoteIdentifier],
     );
 
-    // Execute delete after confirmation
+    // Execute delete after confirmation. Runs against the table's own
+    // database via the standard route, then refreshes the viewer.
     const executeDelete = useCallback(async () => {
-        if (!deleteConfirm || !currentTable) return;
+        if (!deleteConfirm || !currentTable || !tableViewerState) return;
 
         const currentTab = queryTabsRef.current?.getActiveTab();
         if (!currentTab) return;
 
-        // Execute delete query
-        await runQuery(
-            deleteConfirm.query,
-            currentTab.environment,
-            currentTable.database,
-            false,
-            currentTable.database !== currentTab.database
-                ? "workspace"
-                : "standard",
-        );
+        const { query } = deleteConfirm;
+        const viewState = tableViewerState;
+        setDeleteConfirm(null);
 
-        if (tableViewerState) {
-            await loadTablePreview(currentTable, currentTab.environment, {
-                page: tableViewerState.page,
-                pageSize: tableViewerState.pageSize,
-                sortColumn: tableViewerState.sortColumn,
-                sortDirection: tableViewerState.sortDirection,
-                searchQuery: tableViewerState.searchQuery,
+        try {
+            const res = await fetch("/api/query", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    query,
+                    environment: currentTab.environment,
+                    database: currentTable.database,
+                    readOnly: false,
+                }),
             });
-        } else {
-            const fullTableName =
-                currentTable.schema === "public"
-                    ? currentTable.name
-                    : `${currentTable.schema}.${currentTable.name}`;
-
-            runQuery(
-                `SELECT * FROM ${fullTableName} LIMIT 100;`,
-                currentTab.environment,
-                currentTable.database,
-                false,
-                currentTable.database !== currentTab.database
-                    ? "workspace"
-                    : "standard",
-            );
+            const data = await res.json();
+            if (!res.ok || data.error) {
+                setError(data.error || "Failed to delete row.");
+                return;
+            }
+        } catch {
+            setError("Failed to connect to the server.");
+            return;
         }
 
-        setDeleteConfirm(null);
-    }, [
-        deleteConfirm,
-        currentTable,
-        loadTablePreview,
-        runQuery,
-        tableViewerState,
-    ]);
+        await loadTablePreview(currentTable, currentTab.environment, {
+            page: viewState.page,
+            pageSize: viewState.pageSize,
+            sortColumn: viewState.sortColumn,
+            sortDirection: viewState.sortDirection,
+            searchQuery: viewState.searchQuery,
+        });
+    }, [deleteConfirm, currentTable, loadTablePreview, tableViewerState]);
 
     const runCurrentTab = useCallback(
         async (explain = false) => {
@@ -1653,6 +1577,8 @@ export default function Home() {
     }, []);
 
     // When active tab changes, fetch databases for its environment
+    const lastTabTargetRef = useRef<string | null>(null);
+
     const handleTabChange = useCallback(
         async (tab: QueryTab) => {
             setActiveTab((prevTab) => {
@@ -1667,6 +1593,16 @@ export default function Home() {
                 }
                 return tab;
             });
+
+            // Toggling read-only keeps the current results (e.g. turning it off
+            // to delete a row in the table viewer); only a different tab,
+            // environment or database starts fresh.
+            const target = `${tab.id}|${tab.environment}|${tab.database}`;
+            if (lastTabTargetRef.current === target) {
+                return;
+            }
+            lastTabTargetRef.current = target;
+
             // Clear previous query results when switching tabs/environments/databases
             setResult(null);
             setExplainResult(null);
@@ -2088,7 +2024,11 @@ export default function Home() {
                                             handleTableViewChange
                                         }
                                         onRefreshTableView={refreshTablePreview}
-                                        onDeleteRow={handleDeleteRow}
+                                        onDeleteRow={
+                                            canDeleteRows
+                                                ? handleDeleteRow
+                                                : undefined
+                                        }
                                     />
                                 )}
                             </div>
@@ -2223,7 +2163,7 @@ export default function Home() {
             {deleteConfirm && (
                 <ConfirmDialog
                     title="Delete Row"
-                    message={`Are you sure you want to delete this row? This operation cannot be undone.\n\n${deleteConfirm.query}`}
+                    message={`Delete this row from ${(activeTab?.environment ?? "").toUpperCase()} / ${currentTable?.database ?? ""}? This cannot be undone.\n\n${deleteConfirm.query}`}
                     confirmLabel="Delete"
                     cancelLabel="Cancel"
                     isDangerous={true}

@@ -4,6 +4,8 @@ import { createPool } from "@/lib/db";
 import { applyVariables, validateVariables } from "@/lib/templates";
 import { registerQuery, unregisterQuery } from "@/lib/query-registry";
 import { rateLimit } from "@/lib/rate-limit";
+import { describeReadOnlyError, runUserQuery } from "@/lib/run-query";
+import { isExplainableReadQuery } from "@/lib/sql-safety";
 
 export const dynamic = "force-dynamic";
 const MAX_ROWS = 10000;
@@ -49,38 +51,6 @@ function getReferencedVariables(sql: string): Set<string> {
         usedVariables.add(match[1]);
     }
     return usedVariables;
-}
-
-/**
- * Detect if a query is a write operation. Mirrors the check in
- * app/api/query/route.ts so the read-only toggle behaves identically in both
- * standard and workspace modes.
- */
-function isWriteQuery(query: string): boolean {
-    const upperQuery = query.trim().toUpperCase();
-    const writeKeywords = [
-        "INSERT",
-        "UPDATE",
-        "DELETE",
-        "DROP",
-        "CREATE",
-        "ALTER",
-        "TRUNCATE",
-        "REPLACE",
-        "MERGE",
-        "GRANT",
-        "REVOKE",
-    ];
-    return writeKeywords.some((keyword) => upperQuery.startsWith(keyword));
-}
-
-function isExplainableReadQuery(query: string): boolean {
-    const normalized = query.trim().toUpperCase();
-    return (
-        normalized.startsWith("SELECT") ||
-        normalized.startsWith("WITH") ||
-        normalized.startsWith("VALUES")
-    );
 }
 
 function resolveQueryTimeoutMs(timeoutMs: unknown): number {
@@ -220,18 +190,6 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Enforce read-only mode. Checked after variable substitution so the
-        // real leading verb is inspected (e.g. an "@id = 5" definition line
-        // doesn't mask an UPDATE that follows it).
-        if (readOnly && isWriteQuery(cleanedSql)) {
-            return NextResponse.json(
-                {
-                    error: "Write operations are disabled in read-only mode. Disable read-only protection to execute this query.",
-                },
-                { status: 403 },
-            );
-        }
-
         // Extract database prefixes from query
         const dbPrefixes = extractDatabasePrefixes(cleanedSql);
 
@@ -312,8 +270,10 @@ export async function POST(request: NextRequest) {
                 explain === true
                     ? `${EXPLAIN_PREFIX}${strippedQuery}`
                     : strippedQuery;
-            console.log("🚀 ~ finalQuery:", finalQuery);
-            const result = await client.query(finalQuery);
+            // EXPLAIN ANALYZE executes the statement, so it always runs read-only.
+            const result = await runUserQuery(client, finalQuery, {
+                readOnly: readOnly || explain === true,
+            });
 
             if (explain === true) {
                 const explainJson = result.rows[0]?.["QUERY PLAN"];
@@ -367,6 +327,11 @@ export async function POST(request: NextRequest) {
         }
     } catch (error: unknown) {
         console.error("Workspace query error:", error);
+
+        const readOnlyError = describeReadOnlyError(error);
+        if (readOnlyError) {
+            return NextResponse.json({ error: readOnlyError }, { status: 403 });
+        }
 
         if (error instanceof Error) {
             const pgError = error as Error & { code?: string };

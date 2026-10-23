@@ -37,6 +37,9 @@ Optional fields:
 - `port` (defaults to `5432`)
 - `password` (defaults to empty string)
 - `requiresVPN` (defaults to `false`)
+- `production` — write queries ask for confirmation. When omitted it is
+  inferred: `true` if the id contains `prod`/`uat`/`staging` or the host
+  contains `prod`.
 
 Loading order:
 

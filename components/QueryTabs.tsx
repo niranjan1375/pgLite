@@ -60,6 +60,8 @@ function generateTabName(
 
 // LocalStorage key for tabs
 const TABS_STORAGE_KEY = "pgLite_queryTabs";
+// New tabs start read-only; writing is an explicit opt-in per tab.
+const NEW_TAB_READ_ONLY = true;
 const ACTIVE_TAB_STORAGE_KEY = "pgLite_activeTabId";
 
 // Load tabs from localStorage
@@ -89,7 +91,7 @@ function loadTabsFromStorage(
             query: "SELECT version();",
             environment: globalEnvironment,
             database: globalDatabase,
-            readOnly: false,
+            readOnly: NEW_TAB_READ_ONLY,
         },
     ];
 }
@@ -185,7 +187,7 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
                     query: "",
                     environment: globalEnvironment,
                     database: globalDatabase,
-                    readOnly: false,
+                    readOnly: NEW_TAB_READ_ONLY,
                 };
                 setTabs([...tabs, newTab]);
                 setActiveTabId(String(nextTabId));
@@ -318,7 +320,7 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
                     query: content,
                     environment,
                     database: "",
-                    readOnly: false,
+                    readOnly: NEW_TAB_READ_ONLY,
                     mode: "workspace",
                     templateName: name,
                 };
@@ -372,7 +374,7 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
             query: "",
             environment: globalEnvironment,
             database: globalDatabase,
-            readOnly: false,
+            readOnly: NEW_TAB_READ_ONLY,
             mode: "standard",
         };
         setTabs([...tabs, newTab]);
@@ -387,7 +389,7 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
             query: "-- Workspace Mode: Use db_name.table_name syntax\n-- Example: SELECT * FROM my_db.users;\n\n",
             environment: globalEnvironment,
             database: "", // Not needed in workspace mode
-            readOnly: false,
+            readOnly: NEW_TAB_READ_ONLY,
             mode: "workspace",
         };
         setTabs([...tabs, newTab]);
