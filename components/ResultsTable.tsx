@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect, memo } from "react";
 import EmptyState from "@/components/EmptyState";
+import { compareValues, NUMERIC_TYPES, toCsvField } from "@/lib/result-format";
 
 // Performance constants
 const MAX_RENDERABLE_ROWS = 10000; // Hard cap to prevent browser freeze
@@ -185,6 +186,9 @@ export default function ResultsTable({
             return result.rows;
         }
 
+        const isNumericSort = NUMERIC_TYPES.has(
+            columnTypes[sortConfig.field] ?? "",
+        );
         const sorted = [...result.rows].sort((a, b) => {
             const aVal = a[sortConfig.field!];
             const bVal = b[sortConfig.field!];
@@ -208,14 +212,12 @@ export default function ResultsTable({
             )
                 return 0;
 
-            // Compare values
-            if (aVal! < bVal!) return sortConfig.direction === "asc" ? -1 : 1;
-            if (aVal! > bVal!) return sortConfig.direction === "asc" ? 1 : -1;
-            return 0;
+            const order = compareValues(aVal, bVal, isNumericSort);
+            return sortConfig.direction === "asc" ? order : -order;
         });
 
         return sorted;
-    }, [result, sortConfig, hasTableViewControls]);
+    }, [result, sortConfig, hasTableViewControls, columnTypes]);
 
     // Cap rows to prevent browser freeze
     const cappedRows = useMemo(() => {
@@ -387,23 +389,12 @@ export default function ResultsTable({
     const exportAsCSV = () => {
         if (!result || result.rows.length === 0) return;
 
-        const headers = result.fields.join(",");
+        const headers = result.fields.map(toCsvField).join(",");
         const rows = result.rows.map((row) =>
-            result.fields
-                .map((field) => {
-                    const value = row[field];
-                    if (value === null) return "NULL";
-                    const str = String(value);
-                    // Escape quotes and wrap in quotes if contains comma
-                    if (str.includes(",") || str.includes('"')) {
-                        return `"${str.replace(/"/g, '""')}"`;
-                    }
-                    return str;
-                })
-                .join(","),
+            result.fields.map((field) => toCsvField(row[field])).join(","),
         );
 
-        const csv = [headers, ...rows].join("\n");
+        const csv = [headers, ...rows].join("\r\n");
         const blob = new Blob([csv], { type: "text/csv" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
