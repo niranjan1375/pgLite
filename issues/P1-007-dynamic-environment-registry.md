@@ -1,7 +1,7 @@
 # P1-007: Static Environment Registry Blocks Multi-Tenant Growth
 
 **Priority**: P1 (High)  
-**Status**: Open  
+**Status**: Won't fix — out of scope (closed 2026-10-24). pgLite is a local single-user tool bound to `127.0.0.1:6500`; revisit only if it is ever deployed for other people.  
 **Owner**: Unassigned  
 **Pre-Ship**: Yes (for productized multi-user deployment)  
 **Created**: 2026-03-09  

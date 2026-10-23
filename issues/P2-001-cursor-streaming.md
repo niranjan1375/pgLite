@@ -1,7 +1,7 @@
 # P2-001: All-or-Nothing Result Loading
 
 **Priority**: P2 (Medium)  
-**Status**: Open  
+**Status**: ✅ Fixed (2026-10-23, PR #12 `perf/stream-large-results`) — single SELECT statements are read through `pg-cursor` in `lib/run-query.ts` and stop at 10,001 rows  
 **Created**: 2026-02-27  
 **Effort**: 1 week
 

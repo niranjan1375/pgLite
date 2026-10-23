@@ -1,5 +1,7 @@
 Title: Add primary-key metadata to schema endpoints
 
+Status: ✅ Done — `primaryKeys` is returned by `/api/columns` and `/api/workspace-schemas` (verified 2026-10-24)
+
 Description
 
 Add `primaryKeys` to the table objects returned by `/api/columns` and `/api/workspace-schemas` so the frontend can build safer DELETE statements and surface PK metadata in the UI.

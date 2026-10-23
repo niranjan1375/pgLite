@@ -1,7 +1,7 @@
 # P2-003: Frontend-Only Read Protection
 
 **Priority**: P2 (Medium)  
-**Status**: ◐ Partially fixed (2026-07-20) — `/api/workspace-query` now enforces the read-only toggle server-side (`isWriteQuery` check, mirroring `/api/query`), and workspace prod writes now trigger the confirmation dialog. **Still open:** the keyword check is bypassable by a leading comment or a data-modifying CTE (same limitation as standard mode), and there is still no connection-level read-only enforcement (`SET TRANSACTION READ ONLY` / a read-only DB role). See `docs/REPO_FINDINGS.md` gap G3.  
+**Status**: ✅ Fixed (2026-10-23, PR #6 `fix/safety-guards`) — read-only is enforced by Postgres (`BEGIN READ ONLY … ROLLBACK`, one statement per request) in both query routes; `lib/sql-safety.ts` is only a UX heuristic for the protected-write confirm  
 **Owner**: Unassigned  
 **Pre-Ship**: Yes  
 **Created**: 2026-02-27  

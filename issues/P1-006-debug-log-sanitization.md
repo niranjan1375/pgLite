@@ -1,7 +1,7 @@
 # P1-006: Sensitive Debug Logging in Runtime Paths
 
 **Priority**: P1 (High)  
-**Status**: Open  
+**Status**: ✅ Fixed (verified 2026-10-24) — no `console.log`/`console.debug` left in runtime code; remaining `console.error`/`warn` carry env id, database name and error messages only (no credentials, no query text)  
 **Owner**: Unassigned  
 **Pre-Ship**: Yes  
 **Created**: 2026-03-09  

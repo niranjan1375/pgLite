@@ -21,7 +21,6 @@ pgLite is a minimal, full-stack PostgreSQL web admin tool built for engineers an
 - **Frontend:** React 19, Next.js 16 (App Router), TypeScript, TailwindCSS 4
 - **Editor:** Monaco Editor (`@monaco-editor/react`)
 - **Database:** PostgreSQL via `node-postgres` (pg v8) with connection pooling
-- **SQL Formatting:** `sql-formatter`
 - **Build/Lint:** Next.js built-in, ESLint 9
 
 ## Key Files
@@ -92,23 +91,17 @@ Seven environments configured: `loadtest`, `sandbox`, `staging`, `vegapay-uat-sn
 - **Virtual scrolling:** `ResultsTable` renders only visible rows; overscan = 15 rows.
 - **Dynamic imports:** `SQLEditor` and `QueryTabs` are lazy-loaded (Monaco requires CSR).
 
-## Current State & Findings
+## Current State
 
-See **`docs/REPO_FINDINGS.md`** for the verified codebase map, real issue
-statuses, gaps, and the next-task backlog (snapshot 2026-06-26, branch
-`feat/v2-wip`).
-
-- **The `issues/` tracker is stale.** Re-verified against code: P0-003 (timeout),
-  P0-005 (workspace pool leak), P1-005 (workspace row cap), and P2-002 (EXPLAIN
-  UI) are all **already fixed** despite being marked Open there.
-- **Still genuinely open:** P0-004 (no API auth), P2-003 / workspace write protection (gap G3), P1-003 (query cancellation),
-  P1-004 (rate limiting), P1-002 (observability).
-- **Dead code:** `components/EnvironmentSelector.tsx` is unused (superseded by
-  `EnvironmentStrip.tsx`).
+**Concluded 2026-10-24** as a local single-user tool. Every tracked issue is
+fixed or explicitly out of scope (`issues/README.md`); API auth, query
+observability and a dynamic environment registry are deliberately not built
+because the server only binds `127.0.0.1`. Older planning docs, audits and
+`REPO_FINDINGS.md` are in `docs/archive/` and no longer describe the code.
 
 ## Code Style
 
-- Brutalist dark UI — monospace fonts, electric green accents, sharp edges, no softness
+- Calm Tokyo Night theme — sans-serif chrome, monospace for data and SQL
 - All design tokens (colors, spacing, typography, layout dimensions) live in `lib/design-system.ts` — use these constants rather than hardcoding values
 - TypeScript throughout — avoid `any`
 - Tailwind for styling — no CSS modules

@@ -1,123 +1,51 @@
 # pgLite
 
-A minimal full-stack PostgreSQL web admin tool built with Next.js (App Router), TypeScript, and TailwindCSS.
+A fast, local PostgreSQL console for day-to-day DB work across several
+environments. Next.js (App Router), TypeScript, Tailwind, `node-postgres`.
+
+pgLite is a **single-user tool that runs on your own machine** — the server
+binds `127.0.0.1:6500` and has no login. Don't expose it on a network.
 
 ## Features
 
-- **SQL Editor** – Write and execute SQL queries with syntax highlighting via a clean textarea
-- **Results Table** – Dynamically rendered table with column headers and row data
-- **Multi-Environment Support** – Switch between Loadtest, Sandbox, Staging, VegaPay UAT, Unity UAT, and Development environments
-- **Environment Selector** – Visual dropdown to switch database environments instantly with VPN indicators
-- **Error Handling** – Clear error messages for query failures
-- **Row Count** – Displays number of rows returned
-- **Keyboard Shortcut** – `Ctrl+Enter` / `⌘+Enter` to run queries
-- **Schema Explorer** – Sidebar placeholder for future schema browsing
-- **Dark Mode** – Developer-friendly dark UI
+- **Monaco SQL editor** with schema-aware autocomplete, multiple tabs and `⌘+Enter` to run
+- **Multi-environment** — switch env and database per tab; VPN-only envs are marked
+- **Workspace tabs** — query across databases with `dbname.table` prefixes
+- **Results grid** — virtual scrolling, type-aware sort, CSV export; 10K-row cap (truncated and flagged, never loaded whole)
+- **Table viewer** — paginated, server-side sort, delete a row by primary key
+- **Safety** — new tabs are read-only, enforced by Postgres; writes to protected envs (prod/UAT/staging) ask for confirmation; 30s statement timeout; cancel a running query
+- **EXPLAIN view**, query history, saved queries, Context variables and SQL templates (`@var = value`)
 
-## Stack
+## Getting started
 
-- [Next.js 16](https://nextjs.org/) (App Router)
-- [TypeScript](https://www.typescriptlang.org/)
-- [TailwindCSS](https://tailwindcss.com/)
-- [node-postgres (pg)](https://node-postgres.com/) with connection pooling
+```bash
+npm install
+cp credentials.example.json .pgconsole/credentials.json   # then fill in real values
+npm run dev                                               # http://127.0.0.1:6500
+```
 
-## Getting Started
+Other commands: `npm run build`, `npm run lint`, `npm test` (vitest).
 
-1. **Clone & install dependencies:**
+## Credentials
 
-    ```bash
-    npm install
-    ```
+Environments load from the first source that exists:
 
-2. **Configure environment variables:**
-
-    The application supports multiple environments (Loadtest, Sandbox, Staging, VegaPay UAT, Unity UAT, Development).
-
-    **Setup Steps:**
-
-    a. Copy the example environment file:
-
-    ```bash
-    cp .env.local.example .env.local
-    ```
-
-    b. Edit `.env.local` and fill in your actual credentials for each environment:
-
-    ```env
-    # All 7 environments are configured with namespaced variables
-    # Example format:
-    LOADTEST_HOST=your-host.database.azure.com
-    LOADTEST_PORT=5432
-    LOADTEST_USER=postgres
-    LOADTEST_PASSWORD=your_password
-    LOADTEST_DB=support
-    # ... repeat for SANDBOX_, STAGING_, VEGAPAY_UAT_SNAPSHOT_, etc.
-    ```
-
-    c. **Security Note:** `.env.local` is excluded from version control. Never commit credentials!
-
-    d. Configured environments:
-    - **Loadtest Azure** - Load testing environment (no VPN)
-    - **Sandbox** - Sandbox environment (no VPN)
-    - **Staging** - Staging environment (no VPN)
-    - **VegaPay UAT Snapshot** - Snapshot database 🔒 (requires VPN)
-    - **VegaPay UAT** - UAT environment 🔒 (requires VPN)
-    - **Unity UAT** - Unity environment 🔒 (requires VPN)
-    - **Development** - Local development
-
-    **Note:** VPN-required environments 🔒 need an active VPN connection to work.
-
-    ```bash
-    npm run dev
-    ```
-
-3. Open [http://localhost:3000](http://localhost:3000) in your browser.
-
-## Security Hygiene
-
-- Never commit real credentials or DSNs to tracked files.
-- Use `.env.local` (ignored by git) for local secrets.
-- `dbDetails.txt` is sanitized and safe-to-commit only.
-- Use `dbDetails.local.example.txt` as template and keep real values in `dbDetails.local.txt`.
-
-## Credentials Source
-
-pgLite now supports loading environment credentials from a local file:
-
-- Path: `.pgconsole/credentials.json`
-- Structure reference: `credentials.example.json`
-- Full format details: `docs/CREDENTIALS_FILE_FORMAT.md`
-
-Environment loading order:
-
-1. `.pgconsole/credentials.json` (or `PGLITE_CREDENTIALS_FILE`)
+1. `.pgconsole/credentials.json` (or the path in `PGLITE_CREDENTIALS_FILE`) — preferred
 2. `PGLITE_ENVIRONMENTS_JSON`
-3. Legacy env variables (`LOADTEST_*`, `SANDBOX_*`, etc.)
+3. Legacy per-env variables (`LOADTEST_*`, `SANDBOX_*`, …) in `.env.local`
 
-## API
+Format, including the per-environment `ssl` mode and CA bundle:
+`docs/CREDENTIALS_FILE_FORMAT.md`. An environment is **protected** (writes need
+confirmation) when it sets `"production": true`, or its id contains
+`prod`/`uat`/`staging`, or its host contains `prod`.
 
-### `POST /api/query`
+## Security hygiene
 
-Executes a SQL query and returns results.
+- `.pgconsole/` and `.env*` (except `.env.local.example`) are gitignored — never commit real credentials.
+- `dbDetails.txt` is sanitized and safe to commit; keep real values in `dbDetails.local.txt`.
 
-**Request body:**
+## Project status
 
-```json
-{ "query": "SELECT version();" }
-```
-
-**Success response:**
-
-```json
-{
-  "rows": [...],
-  "rowCount": 1,
-  "fields": ["version"]
-}
-```
-
-**Error response:**
-
-```json
-{ "error": "relation \"foo\" does not exist" }
-```
+Concluded 2026-10-24. All tracked issues are fixed or explicitly out of scope
+for a local single-user tool — see `issues/README.md`. New work only if it
+makes daily DB work faster or safer.
