@@ -1,7 +1,7 @@
 # P1-005: Workspace Query Missing Result Size Guard
 
 **Priority**: P1 (High)  
-**Status**: Open  
+**Status**: ✅ Fixed (verified in code 2026-06-26; tracker updated 2026-07-20) — result set truncated to `MAX_ROWS` and flagged in `/api/workspace-query`  
 **Owner**: Unassigned  
 **Pre-Ship**: Yes  
 **Created**: 2026-03-09  

@@ -27,7 +27,7 @@
 ### [P0-003] No Query Timeout
 
 **File**: `issues/P0-003-query-timeout.md`  
-**Status**: Open  
+**Status**: ✅ Fixed (verified 2026-06-26; tracker synced 2026-07-20)  
 **Risk**: Runaway queries lock database indefinitely  
 **Effort**: 30 minutes
 
@@ -41,7 +41,7 @@
 ### [P0-005] Workspace Query Connection Leak
 
 **File**: `issues/P0-005-workspace-query-connection-leak.md`  
-**Status**: Open  
+**Status**: ✅ Fixed (verified 2026-06-26; tracker synced 2026-07-20)  
 **Risk**: Database connection exhaustion  
 **Effort**: 4-6 hours
 
@@ -73,7 +73,7 @@
 ### [P1-003] No Query Cancellation
 
 **File**: `issues/P1-003-cancel-query.md`  
-**Status**: Open  
+**Status**: ✅ Fixed (2026-07-20) — AbortController + Cancel button + server-side `pg_cancel_backend`  
 **Risk**: Cannot stop long-running queries  
 **Effort**: 3 hours
 
@@ -87,7 +87,7 @@
 ### [P1-005] Workspace Query Missing Result Size Guard
 
 **File**: `issues/P1-005-workspace-result-limit-missing.md`  
-**Status**: Open  
+**Status**: ✅ Fixed (verified 2026-06-26; tracker synced 2026-07-20)  
 **Risk**: Memory pressure and browser/API instability  
 **Effort**: 2-4 hours
 
@@ -119,14 +119,14 @@
 ### [P2-002] No EXPLAIN Analysis UI
 
 **File**: `issues/P2-002-explain-ui.md`  
-**Status**: Open  
+**Status**: ✅ Fixed (verified 2026-06-26; tracker synced 2026-07-20)  
 **Impact**: Cannot optimize slow queries  
 **Effort**: 3 days
 
 ### [P2-003] Frontend-Only Read Protection
 
 **File**: `issues/P2-003-readonly-roles.md`  
-**Status**: Open  
+**Status**: ◐ Partially fixed (2026-07-20) — workspace read-only enforced server-side + prod-write confirmation added; connection-level read-only roles still open  
 **Impact**: Write protection easily bypassed  
 **Effort**: 4 hours
 
@@ -134,11 +134,13 @@
 
 ## Quick Stats
 
+_Last synced 2026-07-20 against `docs/REPO_FINDINGS.md` + code._
+
 - **Total Issues**: 16
-- **P0 (Critical)**: 4 open, 2 fixed
-- **P1 (High)**: 7 open
-- **P2 (Medium)**: 3 open
-- **Estimated Remaining Effort**: ~3 weeks
+- **P0 (Critical)**: 2 open (P0-004 auth, P0-006 TLS), 4 fixed
+- **P1 (High)**: 6 open, 1 fixed (P1-005)
+- **P2 (Medium)**: 1 open (P2-001, deferred), 1 fixed (P2-002), 1 partially fixed (P2-003)
+- **Still genuinely open**: P0-004, P0-006, P1-001, P1-002, P1-003, P1-004, P1-006, P1-007, P2-001
 
 ---
 
