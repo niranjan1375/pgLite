@@ -48,9 +48,11 @@ pgLite is a minimal, full-stack PostgreSQL web admin tool built for engineers an
 npm run dev      # Start dev server on http://127.0.0.1:6500 (localhost only)
 npm run build    # Production build
 npm run lint     # ESLint
+npm test         # Vitest — unit tests for pure logic in lib/*.test.ts
 ```
 
-No test framework is configured in this project.
+Tests cover the pure modules (SQL scanner/safety, result formatting,
+templates, workspace variables). UI and API routes are verified manually.
 
 ## Database Configuration
 
