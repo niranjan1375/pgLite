@@ -45,7 +45,7 @@ pgLite is a minimal, full-stack PostgreSQL web admin tool built for engineers an
 ## Development Commands
 
 ```bash
-npm run dev      # Start dev server on http://localhost:6500
+npm run dev      # Start dev server on http://127.0.0.1:6500 (localhost only)
 npm run build    # Production build
 npm run lint     # ESLint
 ```
@@ -71,7 +71,7 @@ Seven environments configured: `loadtest`, `sandbox`, `staging`, `vegapay-uat-sn
 - **Caching:** Schema/table/column metadata cached in-memory (5–60s TTL). Pass `forceRefresh=true` to bypass.
 - **Template variables:** `@varName = value` syntax at top of SQL, substituted server-side before execution.
 - **Workspace mode:** Prefix queries with `dbname.` to route to a specific database; regex-extracts DB name and switches pool.
-- **Safety:** Read-only toggle blocks writes **in standard mode only** (`/api/query`) — `/api/workspace-query` currently has NO write protection (known gap G3). Production writes require a confirmation dialog. Row limit is 10K: large result sets are **truncated and flagged** (`truncated`/`totalRows`), not rejected.
+- **Safety:** Read-only is enforced by Postgres, not by parsing: `lib/run-query.ts` runs the statement in `BEGIN READ ONLY … ROLLBACK` over the extended protocol (one statement only), in both query routes. EXPLAIN always runs read-only. New tabs default to read-only. `lib/sql-safety.ts` (`scanStatements`, `isWriteQuery`) is a UX heuristic only — it drives the production-write confirm, whose envs come from the `production` flag in `/api/environments`. Unknown environment ids are an error, never a fallback. Row delete is only offered in the table viewer and only by primary key. Row limit is 10K: large result sets are **truncated and flagged** (`truncated`/`totalRows`), not rejected.
 - **Virtual scrolling:** `ResultsTable` renders only visible rows; overscan = 15 rows.
 - **Dynamic imports:** `SQLEditor` and `QueryTabs` are lazy-loaded (Monaco requires CSR).
 

@@ -4,6 +4,8 @@ import { createPool } from "@/lib/db";
 import { getDefaultEnvironment } from "@/lib/environments";
 import { registerQuery, unregisterQuery } from "@/lib/query-registry";
 import { rateLimit } from "@/lib/rate-limit";
+import { describeReadOnlyError, runUserQuery } from "@/lib/run-query";
+import { isExplainableReadQuery } from "@/lib/sql-safety";
 
 // Server-side row limit to prevent DoS and memory overflow
 const MAX_ROWS = 10000;
@@ -11,15 +13,6 @@ const EXPLAIN_PREFIX = "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ";
 const DEFAULT_QUERY_TIMEOUT_MS = 30000;
 const MIN_QUERY_TIMEOUT_MS = 1000;
 const MAX_QUERY_TIMEOUT_MS = 300000;
-
-function isExplainableReadQuery(query: string): boolean {
-    const normalized = query.trim().toUpperCase();
-    return (
-        normalized.startsWith("SELECT") ||
-        normalized.startsWith("WITH") ||
-        normalized.startsWith("VALUES")
-    );
-}
 
 function resolveQueryTimeoutMs(timeoutMs: unknown): number {
     if (typeof timeoutMs !== "number" || !Number.isFinite(timeoutMs)) {
@@ -31,27 +24,6 @@ function resolveQueryTimeoutMs(timeoutMs: unknown): number {
         MAX_QUERY_TIMEOUT_MS,
         Math.max(MIN_QUERY_TIMEOUT_MS, normalized),
     );
-}
-
-/**
- * Helper to detect if a query is write operation
- */
-function isWriteQuery(query: string): boolean {
-    const upperQuery = query.trim().toUpperCase();
-    const writeKeywords = [
-        "INSERT",
-        "UPDATE",
-        "DELETE",
-        "DROP",
-        "CREATE",
-        "ALTER",
-        "TRUNCATE",
-        "REPLACE",
-        "MERGE",
-        "GRANT",
-        "REVOKE",
-    ];
-    return writeKeywords.some((keyword) => upperQuery.startsWith(keyword));
 }
 
 export async function POST(req: NextRequest) {
@@ -91,16 +63,6 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // Check if read-only mode is enabled and query is a write operation
-        if (readOnly && isWriteQuery(query)) {
-            return NextResponse.json(
-                {
-                    error: "Write operations are disabled in read-only mode. Disable read-only protection to execute this query.",
-                },
-                { status: 403 },
-            );
-        }
-
         // Create pool for this specific request
         pool = createPool(environment, database);
 
@@ -127,7 +89,10 @@ export async function POST(req: NextRequest) {
 
             const start = Date.now();
             const finalQuery = explain ? `${EXPLAIN_PREFIX}${query}` : query;
-            const result = await client.query(finalQuery);
+            // EXPLAIN ANALYZE executes the statement, so it always runs read-only.
+            const result = await runUserQuery(client, finalQuery, {
+                readOnly: readOnly || explain,
+            });
             const executionTime = Date.now() - start;
 
             if (explain) {
@@ -170,6 +135,10 @@ export async function POST(req: NextRequest) {
             client.release();
         }
     } catch (err: unknown) {
+        const readOnlyError = describeReadOnlyError(err);
+        if (readOnlyError) {
+            return NextResponse.json({ error: readOnlyError }, { status: 403 });
+        }
         if (err instanceof Error) {
             const pgError = err as Error & { code?: string };
             if (pgError.code === "57014") {

@@ -10,12 +10,15 @@ export interface Environment {
     password: string;
     database: string;
     requiresVPN?: boolean;
+    /** Explicit production flag; when omitted it is inferred (see isProductionEnvironment). */
+    production?: boolean;
 }
 
 export interface EnvironmentSummary {
     id: string;
     name: string;
     requiresVPN: boolean;
+    production: boolean;
 }
 
 interface EnvironmentConfigInput {
@@ -27,6 +30,7 @@ interface EnvironmentConfigInput {
     password?: string;
     database: string;
     requiresVPN?: boolean;
+    production?: boolean;
 }
 
 interface CredentialsFileShape {
@@ -152,6 +156,10 @@ function parseDynamicEnvironments(): Record<string, Environment> | null {
                 password: item.password || "",
                 database: item.database,
                 requiresVPN: Boolean(item.requiresVPN),
+                production:
+                    typeof item.production === "boolean"
+                        ? item.production
+                        : undefined,
             };
         }
 
@@ -184,6 +192,10 @@ function parseFromEntries(
             password: item.password || "",
             database: item.database,
             requiresVPN: Boolean(item.requiresVPN),
+            production:
+                typeof item.production === "boolean"
+                    ? item.production
+                    : undefined,
         };
     }
 
@@ -248,11 +260,24 @@ export function getDefaultEnvironment(): string {
     return getAllEnvironments()[0] || "dev";
 }
 
+/**
+ * Production-like environments get write confirmations. Uses the explicit
+ * `production` flag when set; otherwise infers from the id AND the host, so
+ * an env named "*-uat" that actually points at a prod host is still caught.
+ */
+export function isProductionEnvironment(id: string, env: Environment): boolean {
+    if (typeof env.production === "boolean") {
+        return env.production;
+    }
+    return /prod|uat|staging/i.test(id) || /prod/i.test(env.host);
+}
+
 export function getEnvironmentSummaries(): EnvironmentSummary[] {
     return Object.entries(environments).map(([id, env]) => ({
         id,
         name: env.name || id,
         requiresVPN: Boolean(env.requiresVPN),
+        production: isProductionEnvironment(id, env),
     }));
 }
 

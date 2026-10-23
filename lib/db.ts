@@ -15,14 +15,12 @@ export function createPool(
     environment: string = getDefaultEnvironment(),
     database?: string,
 ): Pool {
-    const defaultEnvironment = getDefaultEnvironment();
     const envConfig = environments[environment];
 
+    // Never fall back to another environment: a typo must not silently run
+    // SQL somewhere else.
     if (!envConfig) {
-        console.warn(
-            `Environment "${environment}" not found, using ${defaultEnvironment} as fallback`,
-        );
-        return createPool(defaultEnvironment, database);
+        throw new Error(`Unknown environment "${environment}".`);
     }
 
     return new Pool({
@@ -42,8 +40,3 @@ export function createPool(
         connectionTimeoutMillis: 5000,
     });
 }
-
-// Default pool for backward compatibility (not recommended for new code)
-const pool = createPool(getDefaultEnvironment());
-
-export default pool;
