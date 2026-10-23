@@ -14,7 +14,7 @@ pgLite is a minimal, full-stack PostgreSQL web admin tool built for engineers an
   DB work quicker or safer. Don't add features (or dependencies) that don't
   clearly pay for themselves; a big feature list that slows the tool down is
   explicitly not wanted.
-- Functionality first; UI polish and the `page.tsx` split come later.
+- Functionality first; UI polish comes later.
 
 ## Tech Stack
 
@@ -28,7 +28,12 @@ pgLite is a minimal, full-stack PostgreSQL web admin tool built for engineers an
 
 | File | Purpose |
 |------|---------|
-| `app/page.tsx` | Main UI — monolithic 2000+ line component, all application state lives here |
+| `app/page.tsx` | Main UI — layout + wiring (~560 lines); state lives in the hooks below |
+| `hooks/useQueryExecution.ts` | Results pane: run (prod-write confirm), cancel, table viewer, PK row delete |
+| `hooks/useSchemaMetadata.ts` | Databases per env + tables/columns/PKs for the active tab (TTL cache, stale-response guard) |
+| `hooks/useEnvironments.ts` / `useContextProfiles.ts` / `useTemplates.ts` | Env list + production flag; Context variables; workspace templates |
+| `hooks/useQueryLibrary.ts` / `useEditorLayout.ts` | History + saved queries (localStorage); editor resize + ⌘B sidebar |
+| `lib/query-types.ts` / `lib/sql-literal.ts` | Shared client types; identifier/literal quoting and the PK `DELETE` builder |
 | `app/api/query/route.ts` | Execute SQL queries (30s timeout, 10K row limit) |
 | `app/api/workspace-query/route.ts` | Cross-database queries using `db.table` prefix syntax |
 | `app/api/workspace-schemas/route.ts` | Fetch all schemas/tables/columns for autocomplete |
