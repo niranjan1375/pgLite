@@ -62,7 +62,7 @@ Re-checked against code on 2026-06-26. ✅ = fixed in code, ⛔ = still open.
 | P0-003 | No query timeout | **Open** | ✅ **Fixed** | `query/route.ts:98` `set_config('statement_timeout')`, both routes |
 | P0-004 | No API auth | Open | ⛔ Open | no `middleware.ts`, no auth in routes |
 | P0-005 | Workspace pool leak | **Open** | ✅ **Fixed** | `workspace-query/route.ts:344` `pool.end()` + `:311` release + `:229` tempPool |
-| P0-006 | TLS verify disabled | Open | ⛔ Open | `db.ts` `rejectUnauthorized:false` |
+| P0-006 | TLS verify disabled | Fixed | ✅ Fixed 2026-10-23 | `lib/tls.ts` per-env `ssl`/`sslCa` |
 | P1-001 | Pool-per-request | Open | ⛔ Open (by design) | `db.ts` fresh pool each call |
 | P1-002 | No observability | Open | ⛔ Open | no structured logging |
 | P1-003 | No query cancellation | Open | ⛔ Open | no `AbortController` / `pg_cancel_backend` |
