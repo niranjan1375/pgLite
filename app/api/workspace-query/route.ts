@@ -9,7 +9,11 @@ import {
     releaseAfterUserQuery,
     runUserQuery,
 } from "@/lib/run-query";
-import { isExplainableReadQuery, scanStatements } from "@/lib/sql-safety";
+import {
+    isExplainableReadQuery,
+    replaceInCode,
+    scanStatements,
+} from "@/lib/sql-safety";
 
 export const dynamic = "force-dynamic";
 const MAX_ROWS = 10000;
@@ -91,13 +95,12 @@ function extractDatabasePrefixes(sql: string): string[] {
 
 // Remove database prefix from SQL query (db.table -> table)
 // PostgreSQL doesn't support cross-database queries, so we strip the DB prefix
-// after routing to the correct database
+// after routing to the correct database. Only code is rewritten: string
+// literals and comments keep their text (e.g. 'see core.users').
 function stripDatabasePrefix(sql: string, dbName: string): string {
     const escapedDbName = dbName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    // Replace db_name. with nothing (case-insensitive)
-    // Use word boundary to avoid partial matches
     const regex = new RegExp(`\\b${escapedDbName}\\.`, "gi");
-    return sql.replace(regex, "");
+    return replaceInCode(sql, regex, "");
 }
 
 export async function POST(request: NextRequest) {
@@ -301,7 +304,7 @@ export async function POST(request: NextRequest) {
             }
 
             // Check if this is a data-returning query
-            if (result.rows && result.fields) {
+            if (result.fields.length > 0) {
                 // Cap the result set, but truncate-and-flag rather than reject
                 // so the user still sees the first MAX_ROWS rows.
                 const truncated = result.rows.length > MAX_ROWS;
@@ -312,6 +315,7 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({
                     rows,
                     rowCount: rows.length,
+                    command: result.command,
                     totalRows: result.rows.length,
                     fields: result.fields.map((f) => f.name),
                     fieldTypes: result.fields.map((f) => f.dataTypeID),
@@ -323,7 +327,8 @@ export async function POST(request: NextRequest) {
             // For non-SELECT queries (INSERT, UPDATE, DELETE, etc.)
             return NextResponse.json({
                 rows: [],
-                rowCount: result.rowCount || 0,
+                rowCount: result.rowCount ?? 0,
+                command: result.command,
                 fields: [],
                 routedDatabase,
             });
