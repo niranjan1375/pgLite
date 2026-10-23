@@ -5,7 +5,7 @@ import { applyVariables, validateVariables } from "@/lib/templates";
 import { registerQuery, unregisterQuery } from "@/lib/query-registry";
 import { rateLimit } from "@/lib/rate-limit";
 import { describeReadOnlyError, runUserQuery } from "@/lib/run-query";
-import { isExplainableReadQuery } from "@/lib/sql-safety";
+import { isExplainableReadQuery, scanStatements } from "@/lib/sql-safety";
 
 export const dynamic = "force-dynamic";
 const MAX_ROWS = 10000;
@@ -190,8 +190,13 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Extract database prefixes from query
-        const dbPrefixes = extractDatabasePrefixes(cleanedSql);
+        // Extract database prefixes from code only, so a "db.table" inside a
+        // comment or string literal can't change routing.
+        const dbPrefixes = extractDatabasePrefixes(
+            scanStatements(cleanedSql)
+                .map((statement) => statement.code)
+                .join(";\n"),
+        );
 
         // Validation: Require exactly one database prefix
         if (dbPrefixes.length === 0) {
