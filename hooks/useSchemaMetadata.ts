@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Column, QueryMode, WorkspaceSchema } from "@/lib/query-types";
 
-const WORKSPACE_SCHEMA_CACHE_TTL_MS = 120_000;
-const TABLE_COLUMNS_CACHE_TTL_MS = 5 * 60_000; // 5 minutes, matches server-side cache
+// The server keeps schemas (on disk too) and answers from its cache, so
+// after this long the client just asks again — quietly, in the background.
+const SCHEMA_REVALIDATE_AFTER_MS = 60_000;
 
 interface StandardSchemaPayload {
     tableColumns: Record<string, Column[]>;
@@ -14,9 +15,14 @@ interface TimedCache<T> {
     inFlight: Partial<Record<string, Promise<T>>>;
 }
 
-function freshEntry<T>(cache: TimedCache<T>, key: string, ttlMs: number) {
+function cachedEntry<T>(cache: TimedCache<T>, key: string) {
     const hit = cache.entries[key];
-    return hit && Date.now() - hit.fetchedAt < ttlMs ? hit.data : undefined;
+    return hit
+        ? {
+              data: hit.data,
+              stale: Date.now() - hit.fetchedAt > SCHEMA_REVALIDATE_AFTER_MS,
+          }
+        : undefined;
 }
 
 // Joins an in-flight request for the same key unless forced.
@@ -118,58 +124,58 @@ export function useSchemaMetadata(target: SchemaTarget | null) {
             if (!environment) return;
             if (!workspace && !database) return;
 
-            const applyWorkspace = (schemas: WorkspaceSchema[]) =>
-                setWorkspaceSchemas(schemas);
-            const applyStandard = (data: StandardSchemaPayload) => {
-                setTableColumns(data.tableColumns);
-                setPrimaryKeysByTable(data.primaryKeysByTable);
-            };
-
             const seq = ++requestSeqRef.current;
             const isLatest = () => requestSeqRef.current === seq;
 
-            if (workspace) {
-                const cache = workspaceCacheRef.current;
-                const hit = forceRefresh
-                    ? undefined
-                    : freshEntry(cache, environment, WORKSPACE_SCHEMA_CACHE_TTL_MS);
-                if (hit) return applyWorkspace(hit);
-
-                setLoadingTables(true);
-                try {
-                    const schemas = await loadShared(
-                        cache,
-                        environment,
-                        forceRefresh,
-                        () => fetchWorkspaceSchemas(environment, forceRefresh),
-                    );
-                    if (isLatest()) applyWorkspace(schemas);
-                } catch (err) {
-                    console.error("Failed to fetch workspace schemas:", err);
-                } finally {
-                    if (isLatest()) setLoadingTables(false);
+            // Show whatever is cached at once; only an empty cache (or the
+            // refresh button) shows the spinner. A stale entry is refetched
+            // in the background and swapped in when it arrives.
+            const load = async <T,>(
+                cache: TimedCache<T>,
+                key: string,
+                fetcher: () => Promise<T>,
+                apply: (data: T) => void,
+                label: string,
+            ) => {
+                const hit = forceRefresh ? undefined : cachedEntry(cache, key);
+                if (hit) {
+                    apply(hit.data);
+                    setLoadingTables(false);
+                    if (!hit.stale) return;
+                } else {
+                    setLoadingTables(true);
                 }
+                try {
+                    const data = await loadShared(cache, key, forceRefresh, fetcher);
+                    if (isLatest()) apply(data);
+                } catch (err) {
+                    console.error(`Failed to fetch ${label}:`, err);
+                } finally {
+                    if (isLatest() && !hit) setLoadingTables(false);
+                }
+            };
+
+            if (workspace) {
+                await load(
+                    workspaceCacheRef.current,
+                    environment,
+                    () => fetchWorkspaceSchemas(environment, forceRefresh),
+                    setWorkspaceSchemas,
+                    "workspace schemas",
+                );
                 return;
             }
 
-            const key = `${environment}:${database}`;
-            const cache = standardCacheRef.current;
-            const hit = forceRefresh
-                ? undefined
-                : freshEntry(cache, key, TABLE_COLUMNS_CACHE_TTL_MS);
-            if (hit) return applyStandard(hit);
-
-            setLoadingTables(true);
-            try {
-                const data = await loadShared(cache, key, forceRefresh, () =>
-                    fetchStandardSchema(environment, database!, forceRefresh),
-                );
-                if (isLatest()) applyStandard(data);
-            } catch (err) {
-                console.error("Failed to fetch tables/columns:", err);
-            } finally {
-                if (isLatest()) setLoadingTables(false);
-            }
+            await load(
+                standardCacheRef.current,
+                `${environment}:${database}`,
+                () => fetchStandardSchema(environment, database!, forceRefresh),
+                (data) => {
+                    setTableColumns(data.tableColumns);
+                    setPrimaryKeysByTable(data.primaryKeysByTable);
+                },
+                "tables/columns",
+            );
         },
         [environment, database, workspace],
     );
