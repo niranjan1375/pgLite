@@ -1,8 +1,28 @@
 # Ship Blockers
 
-Last updated: 2026-03-09
+Last updated: 2026-10-24 (close-out; original analysis 2026-03-09)
 
 This document lists issues that must be addressed before production rollout.
+
+## Status at close-out (2026-10-24)
+
+pgLite shipped as a **local single-user tool** (server bound to `127.0.0.1:6500`).
+Every item below is either fixed or out of scope for that use; the sections
+further down are kept as the original 2026-03-09 analysis.
+
+| Item | Outcome |
+|------|---------|
+| C-001 / S-001 Unauthenticated APIs | Won't fix — localhost only (`issues/P0-004`) |
+| C-002 Workspace connection leak | Fixed (shared pools, `lib/db.ts`) |
+| C-003 TLS verification disabled | Fixed — per-env `ssl` mode + CA bundle (`lib/tls.ts`, PR #13) |
+| H-001 Pool per request | Fixed — one pool per env + db (PR #10) |
+| H-002 Workspace result cap | Fixed — 10K rows, truncated and flagged |
+| H-003 Query cancellation | Fixed — Cancel button + `pg_cancel_backend` |
+| H-004 Workspace schema scanning | Fixed — one query per database, 6 in parallel, SWR disk cache (PR #15) |
+| H-005 Static environment model | Won't fix — envs come from `.pgconsole/credentials.json`, no redeploy needed for one user (`issues/P1-007`) |
+| S-002 Rate limiting | Fixed — `lib/rate-limit.ts` |
+| S-003 Client-side read-only guard | Fixed — enforced by Postgres (`BEGIN READ ONLY`, PR #6) |
+| S-004 Debug log leaks | Fixed — no debug logging in runtime paths |
 
 ## Do Not Ship Until These Are Fixed
 

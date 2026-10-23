@@ -1,5 +1,7 @@
 # pgLite Issues & Technical Debt Tracker
 
+> **Closed out 2026-10-24.** Every issue is fixed or explicitly out of scope; see Quick Stats.
+
 ## Priority Levels
 
 - **P0 (Critical)**: Must fix before production use. Security/stability risks.
@@ -34,7 +36,7 @@
 ### [P0-004] Missing API Authentication & Authorization
 
 **File**: `issues/P0-004-api-authentication.md`  
-**Status**: Open  
+**Status**: Won't fix — out of scope (closed 2026-10-24). pgLite is a local single-user tool bound to `127.0.0.1:6500`; revisit only if it is ever deployed for other people.  
 **Risk**: Unauthenticated SQL and schema access  
 **Effort**: 1-2 days
 
@@ -59,14 +61,14 @@
 ### [P1-001] Pool-Per-Request Architecture
 
 **File**: `issues/P1-001-connection-pooling.md`  
-**Status**: Open  
+**Status**: ✅ Fixed (2026-10-23, PR #10 `perf/pool-reuse`) — one shared pool per environment + database in `lib/db.ts`  
 **Risk**: Connection exhaustion under load  
 **Effort**: 4 hours
 
 ### [P1-002] No Query Observability
 
 **File**: `issues/P1-002-logging.md`  
-**Status**: Open  
+**Status**: Won't fix — out of scope (closed 2026-10-24). pgLite is a local single-user tool bound to `127.0.0.1:6500`; revisit only if it is ever deployed for other people.  
 **Risk**: Cannot debug slow/failed queries  
 **Effort**: 2 hours
 
@@ -80,7 +82,7 @@
 ### [P1-004] Missing Rate Limiting & Abuse Controls
 
 **File**: `issues/P1-004-missing-rate-limiting.md`  
-**Status**: Open  
+**Status**: ✅ Fixed (PR #5) — per-process fixed-window limiter in `lib/rate-limit.ts`, applied to both query routes  
 **Risk**: Query flood / denial of service  
 **Effort**: 1 day
 
@@ -94,14 +96,14 @@
 ### [P1-006] Sensitive Debug Logging in Runtime Paths
 
 **File**: `issues/P1-006-debug-log-sanitization.md`  
-**Status**: Open  
+**Status**: ✅ Fixed (verified 2026-10-24) — no `console.log`/`console.debug` left in runtime code; remaining `console.error`/`warn` carry env id, database name and error messages only (no credentials, no query text)  
 **Risk**: Sensitive hints leaked to logs  
 **Effort**: 2-3 hours
 
 ### [P1-007] Static Environment Registry Blocks Multi-Tenant Growth
 
 **File**: `issues/P1-007-dynamic-environment-registry.md`  
-**Status**: Open  
+**Status**: Won't fix — out of scope (closed 2026-10-24). pgLite is a local single-user tool bound to `127.0.0.1:6500`; revisit only if it is ever deployed for other people.  
 **Risk**: Cannot add/remove/rename environments without redeploy  
 **Effort**: 2-4 days
 
@@ -112,7 +114,7 @@
 ### [P2-001] All-or-Nothing Result Loading
 
 **File**: `issues/P2-001-cursor-streaming.md`  
-**Status**: Open (deferred — decision recorded 2026-06-26: use `pg-cursor` when memory pressure appears)  
+**Status**: ✅ Fixed (2026-10-23, PR #12 `perf/stream-large-results`) — single SELECT statements are read through `pg-cursor` in `lib/run-query.ts` and stop at 10,001 rows  
 **Impact**: Wastes memory/bandwidth for large results  
 **Effort**: 1 week
 
@@ -126,7 +128,7 @@
 ### [P2-003] Frontend-Only Read Protection
 
 **File**: `issues/P2-003-readonly-roles.md`  
-**Status**: ◐ Partially fixed (2026-07-20) — workspace read-only enforced server-side + prod-write confirmation added; connection-level read-only roles still open  
+**Status**: ✅ Fixed (2026-10-23, PR #6 `fix/safety-guards`) — read-only is enforced by Postgres (`BEGIN READ ONLY … ROLLBACK`, one statement per request) in both query routes; `lib/sql-safety.ts` is only a UX heuristic for the protected-write confirm  
 **Impact**: Write protection easily bypassed  
 **Effort**: 4 hours
 
@@ -134,13 +136,11 @@
 
 ## Quick Stats
 
-_Last synced 2026-07-20 against `docs/REPO_FINDINGS.md` + code._
+_Last synced 2026-10-24 against code on `main`._
 
-- **Total Issues**: 16
-- **P0 (Critical)**: 1 open (P0-004 auth), 5 fixed
-- **P1 (High)**: 6 open, 1 fixed (P1-005)
-- **P2 (Medium)**: 1 open (P2-001, deferred), 1 fixed (P2-002), 1 partially fixed (P2-003)
-- **Still genuinely open**: P0-004, P1-001, P1-002, P1-003, P1-004, P1-006, P1-007, P2-001
+- **Total Issues**: 16 — **13 fixed, 3 won't fix, 0 open**
+- **Won't fix (out of scope for a local single-user tool)**: P0-004 (API auth), P1-002 (observability), P1-007 (dynamic environment registry)
+- **Project status**: concluded 2026-10-24. New work only if it makes daily DB work faster or safer.
 
 ---
 

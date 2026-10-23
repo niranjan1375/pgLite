@@ -1,7 +1,7 @@
 # P1-001: Pool-Per-Request Architecture
 
 **Priority**: P1 (High)  
-**Status**: Open  
+**Status**: ✅ Fixed (2026-10-23, PR #10 `perf/pool-reuse`) — one shared pool per environment + database in `lib/db.ts`  
 **Owner**: Unassigned  
 **Pre-Ship**: Yes  
 **Created**: 2026-02-27  

@@ -2,7 +2,7 @@
 
 > Status: **Draft / for review** · 2026-06-29 · branch `feat/relational-drill-down`
 > Owner: TBD · Surface: results grid (`ResultsTable`), metadata APIs
-> Related: [Context feature](04-context.md), [REPO_FINDINGS](../REPO_FINDINGS.md)
+> Related: [Context feature](04-context.md), [REPO_FINDINGS](../archive/REPO_FINDINGS.md)
 
 ---
 

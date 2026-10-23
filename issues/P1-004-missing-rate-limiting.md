@@ -1,7 +1,7 @@
 # P1-004: Missing Rate Limiting & Abuse Controls
 
 **Priority**: P1 (High)  
-**Status**: Open  
+**Status**: ✅ Fixed (PR #5) — per-process fixed-window limiter in `lib/rate-limit.ts`, applied to both query routes  
 **Owner**: Unassigned  
 **Pre-Ship**: Yes  
 **Created**: 2026-03-09  

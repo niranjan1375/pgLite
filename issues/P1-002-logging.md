@@ -1,7 +1,7 @@
 # P1-002: No Query Observability
 
 **Priority**: P1 (High)  
-**Status**: Open  
+**Status**: Won't fix — out of scope (closed 2026-10-24). pgLite is a local single-user tool bound to `127.0.0.1:6500`; revisit only if it is ever deployed for other people.  
 **Created**: 2026-02-27  
 **Effort**: 2 hours
 
