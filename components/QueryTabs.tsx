@@ -43,7 +43,7 @@ interface QueryTabsProps {
     globalEnvironment: string;
     databases: string[];
     environmentNames?: Record<string, string>;
-    /** Server-decided production flag; RW tabs on these get a loud marker. */
+    /** Server-decided protected flag (prod/UAT/staging); RW tabs on these get a loud marker. */
     isProduction?: (environment: string) => boolean;
     onTabChange?: (tab: QueryTab) => void;
 }
@@ -527,7 +527,7 @@ const QueryTabs = forwardRef<QueryTabsRef, QueryTabsProps>(function QueryTabs(
                                         background: "var(--error)",
                                         flexShrink: 0,
                                     }}
-                                    title="Writes enabled on a production environment"
+                                    title="Writes enabled on a protected environment (writes ask for confirmation)"
                                 >
                                     RW
                                 </span>

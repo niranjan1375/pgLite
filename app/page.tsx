@@ -525,7 +525,7 @@ export default function Home() {
 
             {pendingWrite && (
                 <ConfirmDialog
-                    title="Production Write Warning"
+                    title={`Write to ${pendingWrite.environment.toUpperCase()}`}
                     message={
                         pendingWrite.mode === "workspace"
                             ? `You are about to execute a write query in workspace mode against the ${pendingWrite.environment.toUpperCase()} environment. The target database is routed from the query's table prefix. This operation cannot be undone. Are you sure you want to proceed?`

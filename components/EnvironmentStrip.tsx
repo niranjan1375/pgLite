@@ -8,7 +8,10 @@ interface EnvironmentStripProps {
     environment: string;
     database: string;
     readOnly: boolean;
-    /** Server-decided (lib/environments.ts), not guessed from the name. */
+    /**
+     * Server-decided "protected" flag (prod/UAT/staging get a write confirm,
+     * see lib/environments.ts), not guessed from the name here.
+     */
     production: boolean;
     /** Workspace tabs route by table prefix, so there is no database to pick. */
     workspaceMode: boolean;
@@ -89,7 +92,7 @@ export default function EnvironmentStrip({
     const dbMenuRef = useRef<HTMLDivElement>(null);
 
     const envColor = getEnvironmentColor(environment);
-    // Writes enabled on production: the whole strip says so, not just a label.
+    // Writes enabled on a protected env: the whole strip says so, not just a label.
     const prodWrites = production && !readOnly;
 
     useEscapeKey(() => {
@@ -226,7 +229,7 @@ export default function EnvironmentStrip({
                     className="px-3 text-[10px] uppercase font-bold tracking-widest"
                     style={{ color: "var(--error)", lineHeight: "32px" }}
                 >
-                    ⚠ writes enabled on production
+                    ⚠ writes enabled · {environment} (protected)
                 </span>
             )}
 
